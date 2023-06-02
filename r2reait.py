@@ -17,17 +17,29 @@ __version__ = 0.01
 
 r2 = r2pipe.open()
 
-def analyse(command):
+
+def r2_binary():
     """
-        Analyze currently open binary
-        e.g. aR
+    Return path to opened binary file
     """
     opened_file = list(filter(lambda x: x['fd'] == 3, r2.cmdj('oj')))
     if len(opened_file) == 0:
         raise RuntimeError("Cannot determine file path of binary to analyse")
 
     fpath = opened_file['uri']
+    return fpath
+
+def analyse(command):
+    """
+        Analyze currently open binary
+        e.g. aR
+    """
+    fpath = r2_binary()
     return api.RE_analyse(fpath)
+
+def delete(command):
+    fpath = r2_binary()
+    return api.RE_delete(fpath)
 
 def nearest_symbols(command):
     """
@@ -49,6 +61,7 @@ def r2reait(_):
     """Build the plugin"""
 
     def process(command):
+        print(f"reait: received command {command}")
         try:
             if not command[:2] == "aR":
                 return 0
@@ -74,7 +87,8 @@ def r2reait(_):
             if sub_cmd == "" or sub_cmd[0] == " ":
                 analyse(sub_cmd[1:])
             elif command.startswith("aRann"):
-               #RE_nearest_symbols(command)
+                #RE_nearest_symbols(command)
+                pass
             elif command.startswith("aRej"):
                 #RE_get_embeddings(command)
                 pass
@@ -98,3 +112,5 @@ def r2reait(_):
 # Register the plugin
 if not r2lang.plugin("core", r2reait):
     print("An error occurred while registering r2reait plugin!")
+else:
+    print("Registering reait plugin!")
