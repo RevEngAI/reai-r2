@@ -10,45 +10,14 @@ from os import system
 import traceback
 import requests
 import json
+from reait import api
 
 __author__ = "James Patrick-Evans"
 __version__ = 0.01
 
 r2 = r2pipe.open()
 
-RE_h = {
-    'binary' : None,    # current binary hash
-    'apikey' : 'libr3'  # users api key
-}
-
-def reveng_req(r: requests.request, end_point: str, data=None, ex_headers: dict = None):
-    global RE_h
-    url = f"https://api.reveng.ai/{end_point}"
-    headers = { "Authorization": f"Bearer {RE_h['apikey']}" }
-    if ex_headers:
-        headers.update(ex_headers)
-    resp = r(url, headers=headers, data=data)
-    resp.raise_for_status()
-    return resp.json()
-
-def binary_id():
-    """Get the SHA256 hash of the current binary"""
-    return r2.cmdj('itj')['sha256']
-
-def RE_delete(command):
-    """
-        Delete analysis results for Binary ID in command
-        Binary ID defaults to current binary
-        e.g. aRd 1f0ee425614e009ca48cd81d0ca332fe5e9816628c93c46a0e90c8dcf65ead42
-    """
-    binary_id = binary_id()
-    args = command.split(' ')[1:]
-    if len(args) >= 1:
-        binary_id = args[0]
-
-    return reveng_req(requests.delete, f"/{binary_id}")
-
-def RE_analyse(command):
+def analyse(command):
     """
         Analyze currently open binary
         e.g. aR
@@ -56,14 +25,15 @@ def RE_analyse(command):
     opened_file = list(filter(lambda x: x['fd'] == 3, r2.cmdj('oj')))
     if len(opened_file) == 0:
         raise RuntimeError("Cannot determine file path of binary to analyse")
-    fpath = opened_file['uri']
-    return reveng_req(requests.post, f"/analyse", data=open(fpath, 'rb').read(), ex_headers={"ContentType": "application/binary"})
 
-def RE_nearest_symbols(command):
+    fpath = opened_file['uri']
+    return api.RE_analyse(fpath)
+
+def nearest_symbols(command):
     """
         Get function name suggestions for each function
     """
-    f_suggestions = reveng_req(requests.get, f"/ann/{binary_id()}")
+    f_suggestions = api.RE_nearest_symbols(embedding, 5, collections)
     # apply names using comments
 
     # add all name suggestions with probabilities as comments
@@ -75,42 +45,56 @@ def RE_nearest_symbols(command):
     #r2.cmd(f"afn best_name @fnc.func0000000")
 
 
-def r2revengai(_):
+def r2reait(_):
     """Build the plugin"""
 
     def process(command):
         try:
-            if not command in ("aR", #analyse binary
-                    "aRann",    # get nearest neighbors, add closest symbols for each symbol
-                    "aRej",     # get embeddings as json
-                    "aRc",      # get software components
-                    "aRd"       # securely delete binary and analysis results aRd {hash}
-                    ):
+            if not command[:2] == "aR":
                 return 0
 
+            sub_cmd = command[2:]
+
             # Parse arguments
-            if command == "aR":
-                RE_analyse()
+            if sub_cmd[0] == "?":
+                print("""
+                      Usage aR [RmcnnuSsbom] [...]
+                      | aR                        - Analyze executable with RevEng.AI
+                      | aRm binnet-crypto         - Set RevEng.AI model to use for analysis e.g. binnet-crypto
+                      | aRc ^libcrypto(.*)        - Set RevEng.AI collections regex
+                      | aRnn                      - Search for the closest function matches to the current function
+                      | aRnn @ *0x002ae           - Find the top 5 closest matches for function at address
+                      | aRnn 3 @ sym.func_0x02ae  - Find the 3 closest functions for symbol
+                      | aRu h/m/l/0.8             - Unstrip binary with high/medium/low/float confidence
+                      | aRS                       - Generate a RevEng.AI binary signature
+                      | aRSnn                     - Find closest binary files to executable
+                      | aRsbom                    - Generate SBOM of embedded third party libraries
+                      | aRd                       - Delete binary from RevEng.AI account
+                      """)
+            if sub_cmd == "" or sub_cmd[0] == " ":
+                analyse(sub_cmd[1:])
             elif command.startswith("aRann"):
-                RE_nearest_symbols(command)
+               #RE_nearest_symbols(command)
             elif command.startswith("aRej"):
-                RE_get_embeddings(command)
+                #RE_get_embeddings(command)
+                pass
             elif command.startswith("aRc"):
-                RE_get_software_components(command)
+                #RE_get_software_components(command)
+                pass
             elif command.startswith("aRd"):
-                RE_delete(command)
+                delete(command)
         except Exception as e:
             print(traceback.format_exc())
 
         return 1
 
-    return {"name": "r2revengai",
-            "author": "James Patrick-Evans",
-            "version": 0.10,
+    return {"name": "r2reait",
+            "author": __author__,
+            "version": __version__,
             "licence": "GPLv3",
-            "desc": "radare2 RevEng.AI plugin",
+            "desc": "RevEng.AI Radare2 plugin",
             "call": process}
 
 # Register the plugin
-if not r2lang.plugin("core", r2revengai):
-    print("An error occurred while registering r2reveng.ai plugin !")
+if not r2lang.plugin("core", r2reait):
+    print("An error occurred while registering r2reait plugin!")
