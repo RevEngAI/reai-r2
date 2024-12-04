@@ -7,7 +7,7 @@
 # add_subdirectory(CmdGen)
 
 # main plugin library and sources
-set(ReaiRzPluginSources "Radare.c")
+set(ReaiRzPluginSources "Radare.c" "CmdHandlers.c" "Table.c" "../Plugin.c")
 
 # Radare only accepts shared libraries for plugins
 add_library(reai_radare MODULE SHARED ${ReaiRzPluginSources})
