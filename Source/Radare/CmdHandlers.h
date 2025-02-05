@@ -28,6 +28,8 @@ R_IPI RCmdStatus reai_create_analysis_handler (RCore* core, int argc, const char
 R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const char** argv);
 // "REap"
 R_IPI RCmdStatus reai_apply_existing_analysis_handler (RCore* core, int argc, const char** argv);
+// "REd"
+R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** argv);
 // "REfl"
 R_IPI RCmdStatus reai_get_basic_function_info_handler (RCore* core, int argc, const char** argv);
 // "REfr"

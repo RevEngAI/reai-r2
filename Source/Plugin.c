@@ -615,9 +615,8 @@ Bool reai_plugin_create_analysis_for_opened_binary_file (
     /* warn the use if no analysis exists */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         DISPLAY_ERROR (
-            "It seems that radare analysis hasn't been performed yet. "
-            "Please create radare analysis "
-            "first."
+            "It seems that radare analysis hasn't been performed yet.\n"
+            "Please create a radare analysis first."
         );
         return false;
     }
@@ -647,9 +646,8 @@ Bool reai_plugin_create_analysis_for_opened_binary_file (
     ReaiFnInfoVec *fn_boundaries = reai_plugin_get_function_boundaries (core);
     if (!fn_boundaries) {
         DISPLAY_ERROR (
-            "Failed to get function boundary information from radare "
-            "analysis. Cannot create "
-            "RevEng.AI analysis."
+            "Failed to get function boundary information from radare analysis.\n"
+            "Cannot create RevEng.AI analysis."
         );
         FREE (sha256);
         FREE (binfile_path);
@@ -1383,4 +1381,87 @@ Uint64 reai_plugin_get_radare_analysis_function_count (RCore *core) {
     }
 
     return fns->length;
+}
+
+/**
+ * \b Begin AI decompilation on cloud server for function
+ * at given address (if there exists one).
+ *
+ * \p core
+ * \p addr Address of function.
+ *
+ * \return True on success.
+ * \return False otherwise.
+ * */
+Bool reai_plugin_decompile_at (RCore *core, ut64 addr) {
+    if (!core) {
+        DISPLAY_ERROR ("Invalid arguments");
+        return false;
+    }
+
+    RAnalFunction *fn    = r_anal_get_function_at (core->anal, addr);
+    ReaiFunctionId fn_id = reai_plugin_get_function_id_for_radare_function (core, fn);
+    if (!fn_id) {
+        return false;
+    }
+
+    return !!reai_begin_ai_decompilation (reai(), reai_response(), fn_id);
+}
+
+/**
+ * \b Get status of AI decompiler running for function at given address.
+ *
+ * \p core
+ * \p addr Address of function.
+ *
+ * \return ReaiAiDecompilationStatus
+ * */
+ReaiAiDecompilationStatus reai_plugin_check_decompiler_status_running_at (RCore *core, ut64 addr) {
+    if (!core) {
+        DISPLAY_ERROR ("Invalid arguments");
+        return false;
+    }
+
+    RAnalFunction *fn    = r_anal_get_function_at (core->anal, addr);
+    ReaiFunctionId fn_id = reai_plugin_get_function_id_for_radare_function (core, fn);
+    if (!fn_id) {
+        return false;
+    }
+
+    return reai_poll_ai_decompilation (reai(), reai_response(), fn_id);
+}
+
+/**
+ * \b If AI decompilation is complete then get the decompiled code.
+ *
+ * It is recommended to call this function only after decompilation
+ * is complete. Use the check_decompilar_status API for that.
+ *
+ * \p core
+ * \p addr Address of function
+ *
+ * \return AI Decompilation code on success.
+ * \return A string containing "(empty)" otherwise.
+ * */
+CString reai_plugin_get_decompiled_code_at (RCore *core, ut64 addr) {
+    if (!core) {
+        DISPLAY_ERROR ("Invalid arguments");
+        return NULL;
+    }
+
+    RAnalFunction *fn    = r_anal_get_function_at (core->anal, addr);
+    ReaiFunctionId fn_id = reai_plugin_get_function_id_for_radare_function (core, fn);
+    if (!fn_id) {
+        return NULL;
+    }
+
+    ReaiAiDecompilationStatus status = reai_poll_ai_decompilation (reai(), reai_response(), fn_id);
+    if (status == REAI_AI_DECOMPILATION_STATUS_SUCCESS) {
+        CString decomp = reai_response()->poll_ai_decompilation.data.decompilation;
+        decomp =
+            decomp ? (strlen (decomp) ? strdup (decomp) : strdup ("(empty)")) : strdup ("(null)");
+        return decomp;
+    }
+
+    return NULL;
 }

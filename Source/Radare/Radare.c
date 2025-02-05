@@ -36,6 +36,7 @@ void reai_plugin_display_msg (ReaiLogLevel level, CString msg) {
 
     r_cons_println (msg);
     reai_log_printf (level, "radare.display", msg);
+    r_cons_flush();
 }
 
 int reai_r2_core_init (void *user, const char *cmd) {
@@ -94,6 +95,11 @@ int reai_r2_core_cmd (void *user, const char *input) {
             // REh
             case 'h' : {
                 reai_health_check_handler (core, argc, argv);
+                break;
+            }
+
+            case 'd' : {
+                reai_ai_decompile_handler (core, argc, argv);
                 break;
             }
 
@@ -255,7 +261,7 @@ RCorePlugin r_core_plugin_reai = {
                .desc    = "RevEngAI radare plugin",
                .license = "GPL3",
                .author  = "Siddharth Mishra",
-               .version = 0,
+               .version = "v1+ai_decomp:feb5",
                },
     .call = reai_r2_core_cmd,
     .init = reai_r2_core_init,

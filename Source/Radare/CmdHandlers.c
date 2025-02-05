@@ -120,7 +120,8 @@ R_IPI RCmdStatus reai_list_available_ai_models_handler (RCore* core, int argc, c
     UNUSED (core);
     if (argc < 1 || r_str_startswith (argv[0], "REm?")) {
         DISPLAY_ERROR (
-            "USAGE: REm\nList names of available AI models that can be used to create analysis"
+            "USAGE: REm\n"
+            "List names of available AI models that can be used to create analysis"
         );
         return R_CMD_STATUS_ERROR;
     }
@@ -240,7 +241,10 @@ R_IPI RCmdStatus reai_apply_existing_analysis_handler (RCore* core, int argc, co
 R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const char** argv) {
     REAI_LOG_TRACE ("[CMD] ANN Auto Analyze Binary");
     if (argc < 2 || r_str_startswith (argv[0], "REau?")) {
-        DISPLAY_ERROR ("USAGE : REau <min_confidence>");
+        DISPLAY_ERROR (
+            "USAGE : REau <min_confidence>\n"
+            "Uploads binary to RevEngAI servers and performs AI based auto analysis."
+        );
         return R_CMD_STATUS_ERROR;
     }
 
@@ -271,6 +275,79 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
         );
         return R_CMD_STATUS_ERROR;
     }
+}
+
+/**
+ * "REd"
+ * */
+R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** argv) {
+    REAI_LOG_TRACE ("[CMD] AI Decompile");
+    if (argc < 2 || r_str_startswith (argv[0], "REd?")) {
+        DISPLAY_ERROR (
+            "USAGE : REd <fn_name>\n"
+            "Uses an already existing RevEngAI analysis to decompile functions\n"
+            "With help of AI"
+        );
+        return R_CMD_STATUS_ERROR;
+    }
+
+    const char*    fn_name = argv[1];
+    RAnalFunction* rfn     = r_anal_get_function_byname (core->anal, fn_name);
+
+    if (!rfn) {
+        DISPLAY_ERROR (
+            "A function with given name does not exist in Radare.\n"
+            "Cannot decompile :-("
+        );
+        return R_CMD_STATUS_ERROR;
+    }
+
+    /* NOTE(brightprogrammer): Error count is a hack used to mitigate the case
+     * where the AI decompilation process is already errored out and user wants
+     * to restart the process. */
+    int error_count = 0;
+
+    while (true) {
+        DISPLAY_INFO ("Checking decompilation status...");
+
+        ReaiAiDecompilationStatus status =
+            reai_plugin_check_decompiler_status_running_at (core, rfn->addr);
+
+        if (error_count > 1) {
+            DISPLAY_ERROR (
+                "Failed to decompile \"%s\"\n"
+                "Is this function from RevEngAI's analysis?\n"
+                "What's the output of REfl?",
+                fn_name
+            );
+            return R_CMD_STATUS_ERROR;
+        }
+
+        switch (status) {
+            case REAI_AI_DECOMPILATION_STATUS_ERROR :
+                error_count++;
+            case REAI_AI_DECOMPILATION_STATUS_UNINITIALIZED :
+                DISPLAY_INFO ("No decompilation exists for this function...");
+                reai_plugin_decompile_at (core, rfn->addr);
+                break;
+            case REAI_AI_DECOMPILATION_STATUS_SUCCESS : {
+                DISPLAY_INFO ("AI decompilation complete ;-)\n");
+                CString code = reai_plugin_get_decompiled_code_at (core, rfn->addr);
+                if (code) {
+                    r_cons_println (code);
+                    FREE (code);
+                }
+                return R_CMD_STATUS_OK;
+            }
+            default :
+                break;
+        }
+
+        DISPLAY_INFO ("Going to sleep for two seconds...");
+        r_sys_sleep (2);
+    }
+
+    return R_CMD_STATUS_OK;
 }
 
 /* R_IPI RCmdStatus reai_upload_bin_handler (RCore* core, int argc, const char** argv) { */
