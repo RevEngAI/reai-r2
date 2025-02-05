@@ -713,15 +713,37 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id, Bool
 
     /* an analysis must already exist in order to make auto-analysis work */
     ReaiAnalysisStatus analysis_status = reai_get_analysis_status (reai(), reai_response(), bin_id);
-    CString            status_str      = reai_analysis_status_to_cstr (analysis_status);
     if (analysis_status != REAI_ANALYSIS_STATUS_COMPLETE) {
-        DISPLAY_WARN (
-            "Analysis not complete yet. Please wait for some time and "
-            "then try again! Current analysis status = %s for binary id = %llu",
-            status_str ? status_str : "INVALID",
-            bin_id
-        );
-        return false;
+        switch (analysis_status) {
+            case REAI_ANALYSIS_STATUS_ERROR : {
+                DISPLAY_WARN (
+                    "There seems to be a problem with analysis.\n"
+                    "Please restart the analysis, or check the provided binary ID."
+                );
+                return false;
+            }
+            case REAI_ANALYSIS_STATUS_QUEUED : {
+                DISPLAY_WARN (
+                    "Analysis for given binary ID hasn't started yet.\n"
+                    "Please try again after sometime."
+                );
+                return false;
+            }
+            case REAI_ANALYSIS_STATUS_PROCESSING : {
+                DISPLAY_WARN (
+                    "Analysis for given binary ID is not complete yet.\n"
+                    "Please try again after sometime."
+                );
+                return false;
+            }
+            default : {
+                DISPLAY_WARN (
+                    "Failed to get analysis information of current binary.\n"
+                    "Check the binary ID once more."
+                );
+                return false;
+            }
+        }
     }
 
     /* names of current functions */

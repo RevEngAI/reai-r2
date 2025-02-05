@@ -299,7 +299,7 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
  * */
 R_IPI RCmdStatus reai_get_basic_function_info_handler (RCore* core, int argc, const char** argv) {
     REAI_LOG_TRACE ("[CMD] get basic function info");
-    if (argc < 2 || r_str_startswith (argv[0], "REfl?")) {
+    if (argc < 1 || r_str_startswith (argv[0], "REfl?")) {
         DISPLAY_ERROR (
             "USAGE : REfl\nList all functions detected/provided to/by RevEngAI analysis.\nExisting "
             "attached analysis is required. Either create a new analysis or apply an existing one."
@@ -383,8 +383,7 @@ R_IPI RCmdStatus reai_rename_function_handler (RCore* core, int argc, const char
     if (!core->anal) {
         DISPLAY_ERROR (
             "Seems like radare analysis is not performed yet. Cannot get function at given "
-            "address. "
-            "Cannot rename function at given address."
+            "address. Cannot rename function at given address."
         );
         return R_CMD_STATUS_ERROR;
     }
