@@ -128,6 +128,26 @@ extern "C" {
 #define DISPLAY_ERROR(...) DISPLAY_MSG (REAI_LOG_LEVEL_ERROR, __VA_ARGS__)
 #define DISPLAY_FATAL(...) DISPLAY_MSG (REAI_LOG_LEVEL_FATAL, __VA_ARGS__)
 
+#define APPEND_MSG(level, ...)                                                                     \
+    do {                                                                                           \
+        Size  msgsz = snprintf (0, 0, __VA_ARGS__) + 1;                                            \
+        Char *msg   = ALLOCATE (Char, msgsz);                                                      \
+        if (!msg) {                                                                                \
+            PRINT_ERR (ERR_OUT_OF_MEMORY);                                                         \
+            break;                                                                                 \
+        }                                                                                          \
+        snprintf (msg, msgsz, __VA_ARGS__);                                                        \
+        reai_plugin_append_msg (level, msg);                                                       \
+        FREE (msg);                                                                                \
+    } while (0)
+
+#define APPEND_TRACE(...) APPEND_MSG (REAI_LOG_LEVEL_TRACE, __VA_ARGS__)
+#define APPEND_INFO(...)  APPEND_MSG (REAI_LOG_LEVEL_INFO, __VA_ARGS__)
+#define APPEND_DEBUG(...) APPEND_MSG (REAI_LOG_LEVEL_DEBUG, __VA_ARGS__)
+#define APPEND_WARN(...)  APPEND_MSG (REAI_LOG_LEVEL_WARN, __VA_ARGS__)
+#define APPEND_ERROR(...) APPEND_MSG (REAI_LOG_LEVEL_ERROR, __VA_ARGS__)
+#define APPEND_FATAL(...) APPEND_MSG (REAI_LOG_LEVEL_FATAL, __VA_ARGS__)
+
 #ifdef __cplusplus
 }
 #endif

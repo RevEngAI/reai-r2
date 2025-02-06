@@ -134,12 +134,12 @@ PRIVATE CString get_function_name_with_max_confidence (
     Float64           *required_confidence
 ) {
     if (!fn_matches) {
-        DISPLAY_ERROR ("Function matches are invalid. Cannot proceed.");
+        APPEND_ERROR ("Function matches are invalid. Cannot proceed.");
         return NULL;
     }
 
     if (!origin_fn_id) {
-        DISPLAY_ERROR ("Origin function ID is invalid. Cannot proceed.");
+        APPEND_ERROR ("Origin function ID is invalid. Cannot proceed.");
         return NULL;
     }
 
@@ -179,7 +179,7 @@ PRIVATE CString get_function_name_with_max_confidence (
  * */
 PRIVATE ReaiFnInfoVec *get_fn_infos (ReaiBinaryId bin_id) {
     if (!bin_id) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "Invalid binary ID provied. Cannot fetch function info list from RevEng.AI servers."
         );
         return NULL;
@@ -188,19 +188,19 @@ PRIVATE ReaiFnInfoVec *get_fn_infos (ReaiBinaryId bin_id) {
     /* get function names for all functions in the binary (this is why we need analysis) */
     ReaiFnInfoVec *fn_infos = reai_get_basic_function_info (reai(), reai_response(), bin_id);
     if (!fn_infos) {
-        DISPLAY_ERROR ("Failed to get binary function names.");
+        APPEND_ERROR ("Failed to get binary function names.");
         return NULL;
     }
 
     if (!fn_infos->count) {
-        DISPLAY_ERROR ("Current binary does not have any function.");
+        APPEND_ERROR ("Current binary does not have any function.");
         return NULL;
     }
 
     /* try cloning */
     fn_infos = reai_fn_info_vec_clone_create (fn_infos);
     if (!fn_infos) {
-        DISPLAY_ERROR ("FnInfos vector clone failed");
+        APPEND_ERROR ("FnInfos vector clone failed");
         return NULL;
     }
 
@@ -228,7 +228,7 @@ PRIVATE ReaiAnnFnMatchVec *get_fn_matches (
     Bool         debug_mode
 ) {
     if (!bin_id) {
-        DISPLAY_ERROR ("Invalid binary ID provided. Cannot get function matches.");
+        APPEND_ERROR ("Invalid binary ID provided. Cannot get function matches.");
         return NULL;
     }
 
@@ -243,19 +243,19 @@ PRIVATE ReaiAnnFnMatchVec *get_fn_matches (
     );
 
     if (!fn_matches) {
-        DISPLAY_ERROR ("Failed to get ANN binary symbol similarity result");
+        APPEND_ERROR ("Failed to get ANN binary symbol similarity result");
         return NULL;
     }
 
     if (!fn_matches->count) {
-        DISPLAY_ERROR ("No similar functions found.");
+        APPEND_ERROR ("No similar functions found.");
         return NULL;
     }
 
     /* try clone */
     fn_matches = reai_ann_fn_match_vec_clone_create (fn_matches);
     if (!fn_matches) {
-        DISPLAY_ERROR ("ANN Fn Match vector clone failed.");
+        APPEND_ERROR ("ANN Fn Match vector clone failed.");
         return NULL;
     }
 
@@ -274,7 +274,7 @@ ReaiPlugin *reai_plugin() {
     }
 
     if (!(plugin = NEW (ReaiPlugin))) {
-        DISPLAY_ERROR (ERR_OUT_OF_MEMORY);
+        APPEND_ERROR (ERR_OUT_OF_MEMORY);
         return NULL;
     }
 
@@ -294,7 +294,7 @@ ReaiPlugin *reai_plugin() {
  *  */
 ReaiFnInfoVec *reai_plugin_get_function_boundaries (RCore *core) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid radare core provided. Cannot get function boundaries.");
+        APPEND_ERROR ("Invalid radare core provided. Cannot get function boundaries.");
         return NULL;
     }
 
@@ -317,7 +317,7 @@ ReaiFnInfoVec *reai_plugin_get_function_boundaries (RCore *core) {
         };
 
         if (!reai_fn_info_vec_append (fn_boundaries, &fn_info)) {
-            DISPLAY_ERROR ("Failed to append function info in function boundaries list.");
+            APPEND_ERROR ("Failed to append function info in function boundaries list.");
             reai_fn_info_vec_destroy (fn_boundaries);
             return NULL;
         }
@@ -336,14 +336,14 @@ Bool reai_plugin_init (RCore *core) {
     reai_plugin_deinit();
 
     if (!core) {
-        DISPLAY_ERROR ("Invalid radare core provided.");
+        APPEND_ERROR ("Invalid radare core provided.");
         return false;
     }
 
     /* load default config */
     reai_plugin()->reai_config = reai_config_load (NULL);
     if (!reai_config()) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "Failed to load RevEng.AI toolkit config file. Please make sure the config exists or "
             "create a config using the plugin."
         );
@@ -354,7 +354,7 @@ Bool reai_plugin_init (RCore *core) {
     if (!reai()) {
         reai_plugin()->reai = reai_create (reai_config()->host, reai_config()->apikey);
         if (!reai()) {
-            DISPLAY_ERROR ("Failed to create Reai object.");
+            APPEND_ERROR ("Failed to create Reai object.");
             return false;
         }
     }
@@ -363,7 +363,7 @@ Bool reai_plugin_init (RCore *core) {
     if (!reai_response()) {
         reai_plugin()->reai_response = NEW (ReaiResponse);
         if (!reai_response_init (reai_response())) {
-            DISPLAY_ERROR ("Failed to create/init ReaiResponse object.");
+            APPEND_ERROR ("Failed to create/init ReaiResponse object.");
             FREE (reai_response());
             return false;
         }
@@ -372,7 +372,7 @@ Bool reai_plugin_init (RCore *core) {
     /* create bg workers */
     reai_plugin()->bg_workers = reai_bg_workers_vec_create();
     if (!reai_bg_workers()) {
-        DISPLAY_ERROR ("Failed to initialize background workers vec.");
+        APPEND_ERROR ("Failed to initialize background workers vec.");
         return false;
     }
 
@@ -447,7 +447,7 @@ Bool reai_plugin_deinit() {
 
 Bool reai_plugin_add_bg_work (RThreadFunction fn, void *user_data) {
     if (!fn) {
-        DISPLAY_ERROR ("Invalid function provided. Cannot start background work");
+        APPEND_ERROR ("Invalid function provided. Cannot start background work");
         return false;
     }
 
@@ -465,14 +465,14 @@ Bool reai_plugin_add_bg_work (RThreadFunction fn, void *user_data) {
     // create new thread
     RThread *th = r_th_new (fn, user_data, 0);
     if (!th) {
-        DISPLAY_ERROR ("Failed to create a new background worker thread. Task won't be executed.");
+        APPEND_ERROR ("Failed to create a new background worker thread. Task won't be executed.");
         return false;
     }
     r_th_start (th);
 
     // insert at end
     if (!reai_bg_workers_vec_append (reai_bg_workers(), &th)) {
-        DISPLAY_WARN (
+        APPEND_WARN (
             "Failed to add background worker thread to collection of threads. This might cause "
             "memory leaks because thread object won't be destroyed."
         );
@@ -505,7 +505,7 @@ Bool reai_plugin_save_config (CString host, CString api_key) {
     if (!reai()) {
         reai_plugin()->reai = reai_create (host, api_key);
         if (!reai()) {
-            DISPLAY_ERROR ("Failed to create Reai object.");
+            APPEND_ERROR ("Failed to create Reai object.");
             return false;
         }
     }
@@ -514,20 +514,20 @@ Bool reai_plugin_save_config (CString host, CString api_key) {
     if (!reai_response()) {
         reai_plugin()->reai_response = NEW (ReaiResponse);
         if (!reai_response_init (reai_response())) {
-            DISPLAY_ERROR ("Failed to create/init ReaiResponse object.");
+            APPEND_ERROR ("Failed to create/init ReaiResponse object.");
             FREE (reai_response());
             return false;
         }
     }
 
     if (!reai_auth_check (reai(), reai_response(), host, api_key)) {
-        DISPLAY_ERROR ("Invalid host or api-key provided. Please check once again and retry.");
+        APPEND_ERROR ("Invalid host or api-key provided. Please check once again and retry.");
         return false;
     }
 
     CString reai_config_file_path = reai_config_get_default_path();
     if (!reai_config_file_path) {
-        DISPLAY_ERROR ("Failed to get config file default path.");
+        APPEND_ERROR ("Failed to get config file default path.");
         return false;
     } else {
         REAI_LOG_INFO ("Config will be saved at %s\n", reai_config_file_path);
@@ -535,7 +535,7 @@ Bool reai_plugin_save_config (CString host, CString api_key) {
 
     FILE *reai_config_file = fopen (reai_config_file_path, "w");
     if (!reai_config_file) {
-        DISPLAY_ERROR ("Failed to open config file. %s", strerror (errno));
+        APPEND_ERROR ("Failed to open config file. %s", strerror (errno));
         return false;
     }
 
@@ -557,21 +557,21 @@ Bool reai_plugin_save_config (CString host, CString api_key) {
  * */
 Bool reai_plugin_upload_opened_binary_file (RCore *core) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid radare core provided. Cannot perform upload.");
+        APPEND_ERROR ("Invalid radare core provided. Cannot perform upload.");
         return false;
     }
 
     /* get file path */
     CString binfile_path = reai_plugin_get_opened_binary_file_path (core);
     if (!binfile_path) {
-        DISPLAY_ERROR ("No binary file opened in radare. Cannot perform upload.");
+        APPEND_ERROR ("No binary file opened in radare. Cannot perform upload.");
         return false;
     }
 
     /* check if file is already uploaded or otherwise upload */
     CString sha256 = reai_upload_file (reai(), reai_response(), binfile_path);
     if (!sha256) {
-        DISPLAY_ERROR ("Failed to upload binary file.");
+        APPEND_ERROR ("Failed to upload binary file.");
         FREE (binfile_path);
         return false;
     }
@@ -598,23 +598,23 @@ Bool reai_plugin_create_analysis_for_opened_binary_file (
     Bool    is_private
 ) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid radare core provided. Cannot create analysis.");
+        APPEND_ERROR ("Invalid radare core provided. Cannot create analysis.");
         return false;
     }
 
     if (!prog_name || !strlen (prog_name)) {
-        DISPLAY_ERROR ("Invalid program name provided. Cannot create analysis.");
+        APPEND_ERROR ("Invalid program name provided. Cannot create analysis.");
         return false;
     }
 
     if (!ai_model || !strlen (ai_model)) {
-        DISPLAY_ERROR ("Invalid AI model provided. Cannot create analysis.");
+        APPEND_ERROR ("Invalid AI model provided. Cannot create analysis.");
         return false;
     }
 
     /* warn the use if no analysis exists */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "It seems that radare analysis hasn't been performed yet.\n"
             "Please create a radare analysis first."
         );
@@ -623,19 +623,19 @@ Bool reai_plugin_create_analysis_for_opened_binary_file (
 
     RBin *bin = reai_plugin_get_opened_binary_file (core);
     if (!bin) {
-        DISPLAY_ERROR ("No binary file opened. Cannot create analysis");
+        APPEND_ERROR ("No binary file opened. Cannot create analysis");
         return false;
     }
 
     CString binfile_path = reai_plugin_get_opened_binary_file_path (core);
     if (!binfile_path) {
-        DISPLAY_ERROR ("Failed to get binary file full path. Cannot create analysis");
+        APPEND_ERROR ("Failed to get binary file full path. Cannot create analysis");
         return false;
     }
 
     CString sha256 = reai_upload_file (reai(), reai_response(), binfile_path);
     if (!sha256) {
-        DISPLAY_ERROR ("Failed to upload file");
+        APPEND_ERROR ("Failed to upload file");
         FREE (binfile_path);
         return false;
     }
@@ -645,7 +645,7 @@ Bool reai_plugin_create_analysis_for_opened_binary_file (
     /* get function boundaries to create analysis */
     ReaiFnInfoVec *fn_boundaries = reai_plugin_get_function_boundaries (core);
     if (!fn_boundaries) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "Failed to get function boundary information from radare analysis.\n"
             "Cannot create RevEng.AI analysis."
         );
@@ -669,7 +669,7 @@ Bool reai_plugin_create_analysis_for_opened_binary_file (
     );
 
     if (!bin_id) {
-        DISPLAY_ERROR ("Failed to create RevEng.AI analysis.");
+        APPEND_ERROR ("Failed to create RevEng.AI analysis.");
         FREE (sha256);
         FREE (binfile_path);
         reai_fn_info_vec_destroy (fn_boundaries);
@@ -700,12 +700,12 @@ Bool reai_plugin_create_analysis_for_opened_binary_file (
  * */
 Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id, Bool apply_to_all) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid radare core provided. Cannot apply analysis.");
+        APPEND_ERROR ("Invalid radare core provided. Cannot apply analysis.");
         return false;
     }
 
     if (!bin_id) {
-        DISPLAY_ERROR ("Invalid RevEng.AI binary id provided. Cannot apply analysis.");
+        APPEND_ERROR ("Invalid RevEng.AI binary id provided. Cannot apply analysis.");
         return false;
     }
 
@@ -714,28 +714,28 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id, Bool
     if (analysis_status != REAI_ANALYSIS_STATUS_COMPLETE) {
         switch (analysis_status) {
             case REAI_ANALYSIS_STATUS_ERROR : {
-                DISPLAY_WARN (
+                APPEND_WARN (
                     "There seems to be a problem with analysis.\n"
                     "Please restart the analysis, or check the provided binary ID."
                 );
                 return false;
             }
             case REAI_ANALYSIS_STATUS_QUEUED : {
-                DISPLAY_WARN (
+                APPEND_WARN (
                     "Analysis for given binary ID hasn't started yet.\n"
                     "Please try again after sometime."
                 );
                 return false;
             }
             case REAI_ANALYSIS_STATUS_PROCESSING : {
-                DISPLAY_WARN (
+                APPEND_WARN (
                     "Analysis for given binary ID is not complete yet.\n"
                     "Please try again after sometime."
                 );
                 return false;
             }
             default : {
-                DISPLAY_WARN (
+                APPEND_WARN (
                     "Failed to get analysis information of current binary.\n"
                     "Check the binary ID once more."
                 );
@@ -747,14 +747,14 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id, Bool
     /* names of current functions */
     ReaiFnInfoVec *fn_infos = get_fn_infos (bin_id);
     if (!fn_infos) {
-        DISPLAY_ERROR ("Failed to get funciton info for opened binary.");
+        APPEND_ERROR ("Failed to get funciton info for opened binary.");
         return false;
     }
 
     /* prepare table and print info */
     ReaiPluginTable *successful_renames = reai_plugin_table_create();
     if (!successful_renames) {
-        DISPLAY_ERROR ("Failed to create table to display successful renam operations.");
+        APPEND_ERROR ("Failed to create table to display successful renam operations.");
         reai_fn_info_vec_destroy (fn_infos);
         return false;
     }
@@ -763,7 +763,7 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id, Bool
 
     ReaiPluginTable *failed_renames = reai_plugin_table_create();
     if (!failed_renames) {
-        DISPLAY_ERROR ("Failed to create table to display failed rename operations.");
+        APPEND_ERROR ("Failed to create table to display failed rename operations.");
         reai_plugin_table_destroy (successful_renames);
         reai_fn_info_vec_destroy (fn_infos);
         return false;
@@ -884,7 +884,7 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id, Bool
  * */
 ReaiAnalysisStatus reai_plugin_get_analysis_status_for_binary_id (ReaiBinaryId binary_id) {
     if (!binary_id) {
-        DISPLAY_ERROR ("Invalid binary id provided. Cannot fetch analysis status.");
+        APPEND_ERROR ("Invalid binary id provided. Cannot fetch analysis status.");
         return REAI_ANALYSIS_STATUS_INVALID;
     }
 
@@ -892,7 +892,7 @@ ReaiAnalysisStatus reai_plugin_get_analysis_status_for_binary_id (ReaiBinaryId b
         reai_get_analysis_status (reai(), reai_response(), binary_id);
 
     if (!analysis_status) {
-        DISPLAY_ERROR ("Failed to get analysis status from RevEng.AI servers.");
+        APPEND_ERROR ("Failed to get analysis status from RevEng.AI servers.");
         return REAI_ANALYSIS_STATUS_INVALID;
     }
 
@@ -919,14 +919,14 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
     Bool    apply_to_all
 ) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid radare core provided. Cannot perform auto-analysis.");
+        APPEND_ERROR ("Invalid radare core provided. Cannot perform auto-analysis.");
         return false;
     }
 
     /* try to get latest analysis for loaded binary (if exists) */
     ReaiBinaryId bin_id = reai_binary_id();
     if (!bin_id) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "Please apply an existing analysis or create a new one. I cannot perform auto-analysis "
             "without an existing RevEng.AI analysis."
         );
@@ -936,7 +936,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
     /* an analysis must already exist in order to make auto-analysis work */
     ReaiAnalysisStatus analysis_status = reai_plugin_get_analysis_status_for_binary_id (bin_id);
     if (analysis_status != REAI_ANALYSIS_STATUS_COMPLETE) {
-        DISPLAY_WARN (
+        APPEND_WARN (
             "Analysis not complete yet. Please wait for some time and "
             "then try again!"
         );
@@ -946,7 +946,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
     /* names of current functions */
     ReaiFnInfoVec *fn_infos = get_fn_infos (bin_id);
     if (!fn_infos) {
-        DISPLAY_ERROR ("Failed to get funciton info for opened binary.");
+        APPEND_ERROR ("Failed to get funciton info for opened binary.");
         return false;
     }
 
@@ -954,7 +954,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
     ReaiAnnFnMatchVec *fn_matches =
         get_fn_matches (bin_id, max_results_per_function, 1 - min_confidence, NULL, debug_mode);
     if (!fn_matches) {
-        DISPLAY_ERROR ("Failed to get function matches for opened binary.");
+        APPEND_ERROR ("Failed to get function matches for opened binary.");
         reai_fn_info_vec_destroy (fn_infos);
         return false;
     }
@@ -962,7 +962,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
     /* new vector where new names of functions will be stored */
     ReaiFnInfoVec *new_name_mapping = reai_fn_info_vec_create();
     if (!new_name_mapping) {
-        DISPLAY_ERROR ("Failed to create a new-name-mapping object.");
+        APPEND_ERROR ("Failed to create a new-name-mapping object.");
         reai_ann_fn_match_vec_destroy (fn_matches);
         reai_fn_info_vec_destroy (fn_infos);
         return false;
@@ -971,7 +971,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
     /* prepare table and print info */
     ReaiPluginTable *successful_renames = reai_plugin_table_create();
     if (!successful_renames) {
-        DISPLAY_ERROR ("Failed to create table to display new name mapping.");
+        APPEND_ERROR ("Failed to create table to display new name mapping.");
         reai_fn_info_vec_destroy (new_name_mapping);
         reai_ann_fn_match_vec_destroy (fn_matches);
         reai_fn_info_vec_destroy (fn_infos);
@@ -988,7 +988,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
 
     ReaiPluginTable *failed_renames = reai_plugin_table_create();
     if (!failed_renames) {
-        DISPLAY_ERROR ("Failed to create table to display new name mapping.");
+        APPEND_ERROR ("Failed to create table to display new name mapping.");
         reai_fn_info_vec_destroy (new_name_mapping);
         reai_ann_fn_match_vec_destroy (fn_matches);
         reai_fn_info_vec_destroy (fn_infos);
@@ -1113,7 +1113,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
 
         Bool res = reai_batch_renames_functions (reai(), reai_response(), new_name_mapping);
         if (!res) {
-            DISPLAY_ERROR ("Failed to rename all functions in binary");
+            APPEND_ERROR ("Failed to rename all functions in binary");
         }
     } else {
         eprintf ("No function will be renamed.\n");
@@ -1139,20 +1139,20 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
  * */
 ReaiFunctionId reai_plugin_get_function_id_for_radare_function (RCore *core, RAnalFunction *r_fn) {
     if (!core) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "Invalid radare core provided. Cannot fetch function ID for given function name."
         );
         return 0;
     }
 
     if (!r_fn || !r_fn->name) {
-        DISPLAY_ERROR ("Invalid radare function provided. Cannot get a function ID.");
+        APPEND_ERROR ("Invalid radare function provided. Cannot get a function ID.");
         return 0;
     }
 
     ReaiBinaryId bin_id = reai_binary_id();
     if (!bin_id) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "Please create a new analysis or apply an existing analysis. I need an existing "
             "analysis to get function information."
         );
@@ -1170,7 +1170,7 @@ ReaiFunctionId reai_plugin_get_function_id_for_radare_function (RCore *core, RAn
 
         fn_infos = reai_get_basic_function_info (reai(), reai_response(), bin_id);
         if (!fn_infos) {
-            DISPLAY_ERROR (
+            APPEND_ERROR (
                 "Failed to get function info list for opened binary file from RevEng.AI servers."
             );
             return 0;
@@ -1220,24 +1220,24 @@ Bool reai_plugin_search_and_show_similar_functions (
     Bool    debug_mode
 ) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid radare core porivded. Cannot perform similarity search.");
+        APPEND_ERROR ("Invalid radare core porivded. Cannot perform similarity search.");
         return false;
     }
 
     if (!fcn_name) {
-        DISPLAY_ERROR ("Invalid function name porivded. Cannot perform similarity search.");
+        APPEND_ERROR ("Invalid function name porivded. Cannot perform similarity search.");
         return false;
     }
 
     RAnalFunction *fn = r_anal_get_function_byname (core->anal, fcn_name);
     if (!fn) {
-        DISPLAY_ERROR ("Provided function name does not exist. Cannot get similar function names.");
+        APPEND_ERROR ("Provided function name does not exist. Cannot get similar function names.");
         return false;
     }
 
     ReaiFunctionId fn_id = reai_plugin_get_function_id_for_radare_function (core, fn);
     if (!fn_id) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "Failed to get function id of given function. Cannot get similar function names."
         );
         return false;
@@ -1305,12 +1305,12 @@ Bool reai_plugin_search_and_show_similar_functions (
  * */
 RBin *reai_plugin_get_opened_binary_file (RCore *core) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid radare core provided. Cannot get opened binary file.");
+        APPEND_ERROR ("Invalid radare core provided. Cannot get opened binary file.");
         return NULL;
     }
 
     if (!core->bin) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "Seems like no binary file is opened yet. Binary container object is invalid. Cannot "
             "get opened binary file."
         );
@@ -1358,12 +1358,12 @@ Uint64 reai_plugin_get_opened_binary_file_baseaddr (RCore *core) {
  * */
 Uint64 reai_plugin_get_radare_analysis_function_count (RCore *core) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid radare core provided. Cannot get analysis function count.");
+        APPEND_ERROR ("Invalid radare core provided. Cannot get analysis function count.");
         return 0;
     }
 
     if (!core->anal) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "Seems like radare analysis is not performed yet. The analysis object is invalid. "
             "Cannot get "
             "analysis function count."
@@ -1373,7 +1373,7 @@ Uint64 reai_plugin_get_radare_analysis_function_count (RCore *core) {
 
     RList *fns = core->anal->fcns;
     if (!fns) {
-        DISPLAY_ERROR (
+        APPEND_ERROR (
             "Seems like radare analysis is not performed yet. Function list is invalid. Cannot get "
             "function with given name."
         );
@@ -1395,7 +1395,7 @@ Uint64 reai_plugin_get_radare_analysis_function_count (RCore *core) {
  * */
 Bool reai_plugin_decompile_at (RCore *core, ut64 addr) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid arguments");
+        APPEND_ERROR ("Invalid arguments");
         return false;
     }
 
@@ -1418,7 +1418,7 @@ Bool reai_plugin_decompile_at (RCore *core, ut64 addr) {
  * */
 ReaiAiDecompilationStatus reai_plugin_check_decompiler_status_running_at (RCore *core, ut64 addr) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid arguments");
+        APPEND_ERROR ("Invalid arguments");
         return false;
     }
 
@@ -1445,7 +1445,7 @@ ReaiAiDecompilationStatus reai_plugin_check_decompiler_status_running_at (RCore 
  * */
 CString reai_plugin_get_decompiled_code_at (RCore *core, ut64 addr) {
     if (!core) {
-        DISPLAY_ERROR ("Invalid arguments");
+        APPEND_ERROR ("Invalid arguments");
         return NULL;
     }
 
