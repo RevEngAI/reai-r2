@@ -4,6 +4,20 @@ RevEng.AI plugin for Radare.
 
 ## Installation
 
+### Docker
+
+Don't want to go through all the manual hassle? We have a dockerfile as well. 
+Just do :
+
+```bash
+git clone https://github.com/revengai/reai-r2 && cd reai-r2 && docker build -t reai-r2 . && docker run -it reai-r2
+```
+
+To be able to use the plugin in one single command. Make sure to initialize your plugin with
+`REi <api-key>` command. Get your API key from RevEngAI portal.
+
+### Manual
+
 ```sh
 # Get plugin or download a release
 git clone git@github.com:RevEngAI/reai-r2.git && cd reai-r2
@@ -26,7 +40,7 @@ directory is required. Name of file must be `.creait.toml`
 
 ```toml
 apikey = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"    # Replace this with your own API key
-host = "https://api.reveng.ai/v1"                  # API version and base endpoint
+host = "https://api.reveng.ai"                  # API version and base endpoint
 ```
 
 ### Generating Config File In Plugin
