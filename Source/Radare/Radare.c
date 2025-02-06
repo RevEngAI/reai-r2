@@ -19,11 +19,10 @@
 static void split_args (const char *input, int *argc, char ***argv);
 static void free_args (int argc, char **argv);
 
+CStrVec *dmsgs[REAI_LOG_LEVEL_MAX];
+
 /**
- * Display a message of given level in radare shell.
- *
- * If message is below error level then it's sent to log file,
- * otherwise it's displayed on screen as well as in log file.
+ * Display a message of given level in rizin shell.
  *
  * @param level
  * @param msg
@@ -34,15 +33,44 @@ void reai_plugin_display_msg (ReaiLogLevel level, CString msg) {
         return;
     }
 
-    r_cons_println (msg);
-    reai_log_printf (level, "radare.display", msg);
-    r_cons_flush();
+    reai_plugin_append_msg (level, msg);
+
+    /* append logs from each category */
+    for (int x = 0; x < REAI_LOG_LEVEL_MAX; x++) {
+        CStrVec *v = dmsgs[x];
+        for (size_t l = 0; l < v->count; l++) {
+            CString m = v->items[l];
+            reai_log_printf (level, "rizin.display", m);
+            r_cons_println (m);
+            FREE (v->items[l]);
+        }
+        v->count = 0;
+    }
+}
+
+/**
+ * Apend a message to a vector to be displayed all at once later on.
+ *
+ * @param level
+ * @param msg
+ * */
+void reai_plugin_append_msg (ReaiLogLevel level, CString msg) {
+    if (!msg) {
+        REAI_LOG_ERROR (ERR_INVALID_ARGUMENTS);
+        return;
+    }
+
+    reai_cstr_vec_append (dmsgs[level], &msg);
 }
 
 int reai_r2_core_init (void *user, const char *cmd) {
     UNUSED (cmd);
     RCmd  *rcmd = (RCmd *)user;
     RCore *core = (RCore *)rcmd->data;
+
+    for (int x = 0; x < REAI_LOG_LEVEL_MAX; x++) {
+        dmsgs[x] = reai_cstr_vec_create();
+    }
 
     if (!core) {
         DISPLAY_ERROR ("Invalid radare core provided. Cannot initialize plugin.");
@@ -60,6 +88,11 @@ int reai_r2_core_fini (void *user, const char *cmd) {
     UNUSED (user && cmd);
 
     reai_plugin_deinit();
+
+    for (int x = 0; x < REAI_LOG_LEVEL_MAX; x++) {
+        reai_cstr_vec_destroy (dmsgs[x]);
+        dmsgs[x] = NULL;
+    }
 
     return true;
 }

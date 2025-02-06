@@ -51,6 +51,7 @@ extern "C" {
 
     ReaiFnInfoVec *reai_plugin_get_function_boundaries (RCore *core);
     void           reai_plugin_display_msg (ReaiLogLevel level, CString msg);
+    void           reai_plugin_append_msg (ReaiLogLevel level, CString msg);
     Bool           reai_plugin_check_config_exists();
     CString        reai_plugin_get_default_log_dir_path();
     Bool           reai_plugin_save_config (CString host, CString api_key);

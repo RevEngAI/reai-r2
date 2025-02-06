@@ -44,36 +44,25 @@ R_IPI RCmdStatus reai_show_help_handler (RCore* core, int argc, const char** arg
     }
 
     r_cons_println (
-        "Usage: RE<imhua?>   # RevEngAI Plugin Commands\n"
-        "| REi <host> <api_key>    # Initialize plugin config.\n"
-        "| REm                     # Get all available models for analysis.\n"
-        "| REh                     # Check connection status with RevEngAI servers.\n"
-        "| REu                     # Upload currently loaded binary to RevEngAI servers.\n"
+        "Usage:                       # RevEngAI Plugin Commands\n"
+        "| REi <host> <api_key>       # Initialize plugin config.\n"
+        "| REm                        # Get all available models for analysis.\n"
+        "| REh                        # Check connection status with RevEngAI servers.\n"
+        "| REu                        # Upload currently loaded binary to RevEngAI servers.\n"
         "| REa <prog_name> <cmd_line_args> <ai_model> # Upload and analyse currently loaded "
         "binary.\n"
-        "| REau[?] <min_confidence> # Auto analyze binary functions using ANN and perform batch "
+        "| REau[?] <min_confidence>   # Auto analyze binary functions using ANN and perform batch "
         "rename.\n"
-        "| REap <bin_id>           # Apply already existing RevEng.AI analysis to this binary.\n"
-        "| REfl[?]                 # Get & show basic function info for selected binary.\n"
-        "| REfr <fn_addr> <new_name> # Rename function with given function id to given name.\n"
+        "| REap <bin_id>              # Apply already existing RevEng.AI analysis to this binary.\n"
+        "| REd <func_name>            # AI decompile function with given name.\n"
+        "| REfl[?]                    # Get & show basic function info for selected binary.\n"
+        "| REfr <old_name> <new_name> # Rename function with given function id to given name.\n"
         "| REfs <function_name> <min_confidence> # RevEng.AI ANN functions similarity search.\n"
-        "| REart                   # Show RevEng.AI ASCII art.\n"
+        "| REart                      # Show RevEng.AI ASCII art.\n"
     );
 
     return R_CMD_STATUS_OK;
 }
-
-#define ASK_QUESTION(res, default, msg)                                                            \
-    do {                                                                                           \
-        Char input = 0;                                                                            \
-        r_cons_printf ("%s [%c/%c] : ", msg, (default ? 'Y' : 'y'), (!default ? 'N' : 'n'));       \
-        r_cons_flush();                                                                            \
-        while (input != 'n' && input != 'N' && input != 'Y' && input != 'y') {                     \
-            input = r_cons_readchar();                                                             \
-        }                                                                                          \
-        res = (input == 'y' || input == 'Y');                                                      \
-        r_cons_newline();                                                                          \
-    } while (0)
 
 /**
  * REi
@@ -89,7 +78,7 @@ R_IPI RCmdStatus reai_plugin_initialize_handler (RCore* core, int argc, const ch
         DISPLAY_ERROR (
             "USAGE : REi <host> <api_key>\n"
             "A valid host and api-key is required.\n"
-            "Example: REi https://api.reveng.ai/v1 XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+            "Example: REi https://api.reveng.ai XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
         );
         return R_CMD_STATUS_ERROR;
     }
@@ -101,7 +90,10 @@ R_IPI RCmdStatus reai_plugin_initialize_handler (RCore* core, int argc, const ch
     if (reai_plugin_save_config (host, api_key)) {
         /* try to reinit config after creating config */
         if (!reai_plugin_init (core)) {
-            DISPLAY_ERROR ("Failed to init plugin after creating a new config.");
+            DISPLAY_ERROR (
+                "Failed to init plugin after creating a new config.\n"
+                "Please try restart radare2."
+            );
             return R_CMD_STATUS_ERROR;
         }
     } else {
@@ -121,7 +113,7 @@ R_IPI RCmdStatus reai_list_available_ai_models_handler (RCore* core, int argc, c
     if (argc < 1 || r_str_startswith (argv[0], "REm?")) {
         DISPLAY_ERROR (
             "USAGE: REm\n"
-            "List names of available AI models that can be used to create analysis"
+            "List names of available AI models that can be used to create analysis."
         );
         return R_CMD_STATUS_ERROR;
     }
@@ -145,7 +137,8 @@ R_IPI RCmdStatus reai_health_check_handler (RCore* core, int argc, const char** 
     UNUSED (core);
     if (argc < 1 || r_str_startswith (argv[0], "REh?")) {
         DISPLAY_ERROR (
-            "USAGE: REh\nPerform health check by validating host API endpoint and API key."
+            "USAGE: REh\n"
+            "Perform health check by validating host API endpoint and API key."
         );
         return R_CMD_STATUS_ERROR;
     }
@@ -177,8 +170,17 @@ R_IPI RCmdStatus reai_create_analysis_handler (RCore* core, int argc, const char
     }
     REAI_LOG_TRACE ("[CMD] create analysis");
 
-    Bool is_private;
-    ASK_QUESTION (is_private, true, "Create private analysis?");
+    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    if (!reai_plugin_get_radare_analysis_function_count (core)) {
+        if (r_cons_yesno (
+                'y',
+                "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
+            )) {
+            r_core_cmd_call (core, "aaaa");
+        }
+    }
+
+    Bool is_private = r_cons_yesno ('y', "Create private analysis? [Y/n]");
 
     CString prog_name    = argv[1];
     CString cmdline_args = argv[2];
@@ -216,8 +218,18 @@ R_IPI RCmdStatus reai_apply_existing_analysis_handler (RCore* core, int argc, co
         return R_CMD_STATUS_ERROR;
     }
 
-    Bool rename_unknown_only;
-    ASK_QUESTION (rename_unknown_only, true, "Apply analysis only to unknown functions?");
+    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    if (!reai_plugin_get_radare_analysis_function_count (core)) {
+        if (r_cons_yesno (
+                'y',
+                "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
+            )) {
+            r_core_cmd_call (core, "aaaa");
+        }
+    }
+
+    Bool rename_unknown_only =
+        r_cons_yesno ('y', "Apply analysis only to unknown functions? [Y/n]");
 
     if (reai_plugin_apply_existing_analysis (
             core,
@@ -248,6 +260,16 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
         return R_CMD_STATUS_ERROR;
     }
 
+    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    if (!reai_plugin_get_radare_analysis_function_count (core)) {
+        if (r_cons_yesno (
+                'y',
+                "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
+            )) {
+            r_core_cmd_call (core, "aaaaa");
+        }
+    }
+
     // NOTE: this is static here. I don't think it's a good command line option to have
     // Since user won't know about this when issuing the auto-analysis command.
     // Just set it to a large enough value to get good suggestions
@@ -256,9 +278,8 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
     Uint32 min_confidence = r_num_get (core->num, argv[1]);
     min_confidence        = min_confidence > 100 ? 100 : min_confidence;
 
-    Bool debug_mode, rename_unknown_only;
-    ASK_QUESTION (debug_mode, true, "Enable debug symbol suggestions?");
-    ASK_QUESTION (rename_unknown_only, true, "Rename unknown functions only?");
+    Bool debug_mode          = r_cons_yesno ('y', "Enable debug symbol suggestions? [Y/n]");
+    Bool rename_unknown_only = r_cons_yesno ('y', "Rename unknown functions only? [Y/n]");
 
     if (reai_plugin_auto_analyze_opened_binary_file (
             core,
@@ -270,9 +291,7 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
         DISPLAY_INFO ("Auto-analysis completed successfully.");
         return R_CMD_STATUS_OK;
     } else {
-        DISPLAY_ERROR (
-            "Failed to perform RevEng.AI auto-analysis (apply analysis results in radare/cutter)"
-        );
+        DISPLAY_ERROR ("Failed to perform RevEng.AI auto-analysis");
         return R_CMD_STATUS_ERROR;
     }
 }
@@ -289,6 +308,16 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
             "With help of AI"
         );
         return R_CMD_STATUS_ERROR;
+    }
+
+    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    if (!reai_plugin_get_radare_analysis_function_count (core)) {
+        if (r_cons_yesno (
+                'y',
+                "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
+            )) {
+            r_core_cmd_call (core, "aaaaa");
+        }
     }
 
     const char*    fn_name = argv[1];
@@ -313,18 +342,22 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
         ReaiAiDecompilationStatus status =
             reai_plugin_check_decompiler_status_running_at (core, rfn->addr);
 
-        if (error_count > 1) {
-            DISPLAY_ERROR (
-                "Failed to decompile \"%s\"\n"
-                "Is this function from RevEngAI's analysis?\n"
-                "What's the output of REfl?",
-                fn_name
-            );
-            return R_CMD_STATUS_ERROR;
-        }
-
         switch (status) {
             case REAI_AI_DECOMPILATION_STATUS_ERROR :
+                if (!error_count) {
+                    DISPLAY_INFO (
+                        "Looks like the decompilation process failed last time\n"
+                        "I'll restart the decompilation process again..."
+                    );
+                } else if (error_count > 1) {
+                    DISPLAY_ERROR (
+                        "Failed to decompile \"%s\"\n"
+                        "Is this function from RevEngAI's analysis?\n"
+                        "What's the output of REfl?",
+                        fn_name
+                    );
+                    return R_CMD_STATUS_ERROR;
+                }
                 error_count++;
             case REAI_AI_DECOMPILATION_STATUS_UNINITIALIZED :
                 DISPLAY_INFO ("No decompilation exists for this function...");
@@ -384,6 +417,16 @@ R_IPI RCmdStatus reai_get_basic_function_info_handler (RCore* core, int argc, co
         return R_CMD_STATUS_ERROR;
     }
 
+    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    if (!reai_plugin_get_radare_analysis_function_count (core)) {
+        if (r_cons_yesno (
+                'y',
+                "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
+            )) {
+            r_core_cmd_call (core, "aaaa");
+        }
+    }
+
     /* get file path of opened binary file */
     CString opened_file = reai_plugin_get_opened_binary_file_path (core);
     if (!opened_file) {
@@ -395,8 +438,8 @@ R_IPI RCmdStatus reai_get_basic_function_info_handler (RCore* core, int argc, co
     ReaiBinaryId binary_id = reai_binary_id();
     if (!binary_id) {
         DISPLAY_ERROR (
-            "Please apply existing analysis or create a new one. Cannot get function info from "
-            "RevEng.AI without an existing analysis."
+            "Please apply existing RevEngAI analysis (using REap command) or create a new one.\n"
+            "Cannot get function info from RevEng.AI without an existing analysis."
         );
         return R_CMD_STATUS_ERROR;
     }
@@ -405,7 +448,8 @@ R_IPI RCmdStatus reai_get_basic_function_info_handler (RCore* core, int argc, co
     ReaiAnalysisStatus analysis_status = reai_plugin_get_analysis_status_for_binary_id (binary_id);
     if (analysis_status != REAI_ANALYSIS_STATUS_COMPLETE) {
         DISPLAY_ERROR (
-            "Analysis not yet complete. Current status = \"%s\"\n",
+            "Analysis not yet complete. Current status = \"%s\"\n"
+            "Please try again after some time. I need a complete analysis to get function info.",
             reai_analysis_status_to_cstr (analysis_status)
         );
         return R_CMD_STATUS_OK; // It's ok, check again after sometime
@@ -453,23 +497,25 @@ R_IPI RCmdStatus reai_get_basic_function_info_handler (RCore* core, int argc, co
 R_IPI RCmdStatus reai_rename_function_handler (RCore* core, int argc, const char** argv) {
     REAI_LOG_TRACE ("[CMD] rename function");
     if (argc < 3 || r_str_startswith (argv[0], "REfr?")) {
-        DISPLAY_ERROR ("USAGE : REfr <fn_addr> <new_name>");
+        DISPLAY_ERROR ("USAGE : REfr <old_addr> <new_name>");
         return R_CMD_STATUS_ERROR;
     }
 
-    if (!core->anal) {
-        DISPLAY_ERROR (
-            "Seems like radare analysis is not performed yet. Cannot get function at given "
-            "address. Cannot rename function at given address."
-        );
-        return R_CMD_STATUS_ERROR;
+    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    if (!reai_plugin_get_radare_analysis_function_count (core)) {
+        if (r_cons_yesno (
+                'y',
+                "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
+            )) {
+            r_core_cmd_call (core, "aaaa");
+        }
     }
 
-    Uint64  fn_addr  = r_num_get (core->num, argv[1]);
+    CString old_name = argv[1];
     CString new_name = argv[2];
 
     // get function at given address
-    RAnalFunction* fn = r_anal_get_function_at (core->anal, fn_addr);
+    RAnalFunction* fn = r_anal_get_function_byname (core->anal, old_name);
     if (!fn) {
         DISPLAY_ERROR ("Function with given name not found.");
         return R_CMD_STATUS_ERROR;
@@ -477,15 +523,23 @@ R_IPI RCmdStatus reai_rename_function_handler (RCore* core, int argc, const char
 
     ReaiFunctionId fn_id = reai_plugin_get_function_id_for_radare_function (core, fn);
     if (!fn_id) {
-        DISPLAY_ERROR ("Failed to get function id of function with given name.");
+        DISPLAY_ERROR (
+            "A function ID for given function does not exist in RevEngAI analysis.\n"
+            "I won't be able to rename this function."
+        );
         return R_CMD_STATUS_ERROR;
     }
 
     /* perform rename operation */
     if (reai_rename_function (reai(), reai_response(), fn_id, new_name)) {
-        r_anal_function_rename (fn, new_name);
+        if (r_anal_function_rename (fn, new_name)) {
+            DISPLAY_INFO ("Rename success.");
+        } else {
+            DISPLAY_ERROR ("Rename failed in radare.");
+            return R_CMD_STATUS_ERROR;
+        }
     } else {
-        DISPLAY_ERROR ("Failed to rename the function. Please check the function ID and new name.");
+        DISPLAY_ERROR ("Failed to rename the function in RevEngAI.");
         return R_CMD_STATUS_ERROR;
     }
 
@@ -505,6 +559,16 @@ R_IPI RCmdStatus
         return R_CMD_STATUS_ERROR;
     }
 
+    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    if (!reai_plugin_get_radare_analysis_function_count (core)) {
+        if (r_cons_yesno (
+                'y',
+                "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
+            )) {
+            r_core_cmd_call (core, "aaaa");
+        }
+    }
+
     // NOTE: hardcoded because it does not look good in command arguments
     // just to increase simplicity of command
     Uint32 max_results_count = 20;
@@ -513,8 +577,7 @@ R_IPI RCmdStatus
     CString function_name  = argv[1];
     Float32 min_confidence = r_num_math (core->num, argv[2]);
 
-    Bool debug_mode;
-    ASK_QUESTION (debug_mode, true, "Enable debug symbol suggestions?");
+    Bool debug_mode = r_cons_yesno ('y', "Enable debug symbol suggestions? [Y/n]");
 
     if (!reai_plugin_search_and_show_similar_functions (
             core,
