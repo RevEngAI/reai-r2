@@ -45,7 +45,7 @@ R_IPI RCmdStatus reai_show_help_handler (RCore* core, int argc, const char** arg
 
     r_cons_println (
         "Usage:                       # RevEngAI Plugin Commands\n"
-        "| REi <host> <api_key>       # Initialize plugin config.\n"
+        "| REi <api_key>              # Initialize plugin config.\n"
         "| REm                        # Get all available models for analysis.\n"
         "| REh                        # Check connection status with RevEngAI servers.\n"
         "| REu                        # Upload currently loaded binary to RevEngAI servers.\n"
@@ -74,16 +74,16 @@ R_IPI RCmdStatus reai_show_help_handler (RCore* core, int argc, const char** arg
  * */
 R_IPI RCmdStatus reai_plugin_initialize_handler (RCore* core, int argc, const char** argv) {
     REAI_LOG_TRACE ("[CMD] config initialize");
-    if (argc < 3 || r_str_startswith (argv[0], "REi?")) {
+    if (argc < 2 || r_str_startswith (argv[0], "REi?")) {
         DISPLAY_ERROR (
-            "USAGE : REi <host> <api_key>\n"
-            "A valid host and api-key is required.\n"
-            "Example: REi https://api.reveng.ai XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+            "USAGE : REi <api_key>\n"
+            "A valid api-key is required.\n"
+            "Example: REi XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
         );
         return R_CMD_STATUS_ERROR;
     }
 
-    CString host    = argv[1];
+    CString host    = "https://api.reveng.ai"; // Hardcoded host value 
     CString api_key = argv[2];
 
     /* attempt saving config */
