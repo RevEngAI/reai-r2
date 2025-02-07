@@ -29,7 +29,7 @@ RUN echo 'revengai ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 # TODO: (FOR THE USER) Create config file
 RUN printf "\
   host         =\"https://api.reveng.ai\"\n \
-  apikey       = \"CHANGEAPIKEYHERE\"\n \
+  apikey       = \"APIKEY\"\n \
   " > /home/revengai/.creait.toml
 
 RUN printf "export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH" > /home/revengai/.bashrc

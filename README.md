@@ -10,8 +10,13 @@ Don't want to go through all the manual hassle? We have a dockerfile as well.
 Just do :
 
 ```bash
-git clone https://github.com/revengai/reai-r2 && cd reai-r2 && docker build -t reai-r2 . && docker run -v /tmp/userdata:/home/revengai/userdata -it reai-r2
+git clone https://github.com/revengai/reai-r2 && 
+cd reai-r2 && sed -i -e 's/APIKEY/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/g' Dockerfile && 
+docker build -t reai-r2 . &&
+docker run -v /tmp/userdata:/home/revengai/userdata -it reai-rz
 ```
+
+This will get you a working installation of the radare plugin in a single command!
 
 - Store the files you want to access into `/tmp/userdata` directory of host,
   and access these files through `~/userdata` inside the docker container.
@@ -51,7 +56,7 @@ host = "https://api.reveng.ai"                  # API version and base endpoint
 This config file can be generated using the `REi` command after plugin installation.
 Without a config, the plugin will keep erroring out for all other commands.
 
-`REi https://api.reveng.ai <apikey>`
+`REi <apikey>`
 
 Execute the above command to automatically create a config file similar to the one above.
 You can get the api key in `https://portal.reveng.ai/settings` API Key section. Once
@@ -64,7 +69,7 @@ After installing radare plugin, you'll see the following commands listed when yo
 
 ```sh
 Usage: RE<imhua?>   # RevEngAI Plugin Commands
-| REi <host>=https://api.reveng.ai <api_key>=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX # Initialize plugin config.
+| REi <api_key>=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX # Initialize plugin config.
 | REm                     # Get all available models for analysis.
 | REh                     # Check connection status with RevEngAI servers.
 | REu                     # Upload currently loaded binary to RevEngAI servers.
@@ -82,7 +87,6 @@ Usage: RE<imhua?>   # RevEngAI Plugin Commands
 
 Can be used to check connection status with RevEng.AI servers. It is not required to be executed
 before using the plugin. This comand does not require a binary opened before it's execution as well.
-For any of the following commands, you atleast need a binary file opened.
 
 ### `REm` : Get Available AI Models
 
