@@ -1,9 +1,6 @@
 FROM ubuntu:latest
 ENV DEBIAN_FRONTEND=noninteractive
 
-# First change to a directory that's not /
-WORKDIR /home/ubuntu
-
 # Install all required packages
 RUN apt-get update && \
   apt-get install -y \
@@ -22,35 +19,11 @@ RUN apt-get update && \
   wget \
   sudo
 
-# Download, build and install radare.
-RUN git clone https://github.com/radareorg/radare2 && radare2/sys/install.sh
-
-# Go back to where we start
-WORKDIR /home/ubuntu
-
-# Download, build and install the latest creait library
-RUN git clone https://github.com/RevEngAI/creait && \
-  cd creait && \
-  cmake -B build -G Ninja -D CMAKE_INSTALL_PREFIX=/usr/local -D BUILD_SHARED_LIBS=ON && \
-  ninja -C build && \
-  ninja -C build install
-
-# Go back to where we start
-WORKDIR /home/ubuntu
-
-# Download, build and install latest plugin.
-# By default, this builds radare plugin only.
-RUN git clone https://github.com/RevEngAI/reai-r2 && \
-  cd reai-r2 && \
-  cmake -B build -G Ninja -D CMAKE_INSTALL_PREFIX=/usr/local && \
-  ninja -C build && \
-  ninja -C build install
-
 # Create a new user and set up a password
 RUN useradd -ms /bin/bash revengai && \
   echo 'revengai:revengai' | chpasswd
 
-# Optionally, add a sudo capability if needed
+# RevEngAI user needs to be a sudoser
 RUN echo 'revengai ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # TODO: (FOR THE USER) Create config file
@@ -65,8 +38,32 @@ RUN ldconfig
 # Change to new created user
 USER revengai
 
+# Go back to where we start
 WORKDIR /home/revengai
+
+# Download, build and install radare.
+RUN git clone https://github.com/radareorg/radare2 && radare2/sys/install.sh
+
+# creait needs either $TMP or $TMPDIR or write access to $PWD
+ENV TMPDIR="/tmp"
+
+# Download, build and install the latest creait library
+RUN git clone https://github.com/RevEngAI/creait && \
+  cd creait && \
+  cmake -B build -G Ninja -D CMAKE_INSTALL_PREFIX=/usr/local -D BUILD_SHARED_LIBS=ON && \
+  ninja -C build && \
+  sudo ninja -C build install
+
+# Go back to where we start
+WORKDIR /home/revengai
+
+# Download, build and install latest plugin.
+# By default, this builds radare plugin only.
+RUN git clone https://github.com/RevEngAI/reai-r2 && \
+  cd reai-r2 && \
+  cmake -B build -G Ninja -D CMAKE_INSTALL_PREFIX=/usr/local && \
+  ninja -C build && \
+  sudo ninja -C build install
 
 # Ready to use!
 CMD ["bash"]
-

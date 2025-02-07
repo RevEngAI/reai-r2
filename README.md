@@ -6,15 +6,18 @@ RevEng.AI plugin for Radare.
 
 ### Docker
 
-Don't want to go through all the manual hassle? We have a dockerfile as well. 
+Don't want to go through all the manual hassle? We have a dockerfile as well.
 Just do :
 
 ```bash
-git clone https://github.com/revengai/reai-r2 && cd reai-r2 && docker build -t reai-r2 . && docker run -it reai-r2
+git clone https://github.com/revengai/reai-r2 && cd reai-r2 && docker build -t reai-r2 . && docker run -v /tmp/userdata:/home/revengai/userdata -it reai-r2
 ```
 
-To be able to use the plugin in one single command. Make sure to initialize your plugin with
-`REi <api-key>` command. Get your API key from RevEngAI portal.
+- Store the files you want to access into `/tmp/userdata` directory of host,
+  and access these files through `~/userdata` inside the docker container.
+
+- To be able to use the plugin in one single command. Make sure to initialize your plugin with
+  `REi <api-key>` command. Get your API key from RevEngAI portal.
 
 ### Manual
 
