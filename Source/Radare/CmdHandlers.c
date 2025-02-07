@@ -83,7 +83,7 @@ R_IPI RCmdStatus reai_plugin_initialize_handler (RCore* core, int argc, const ch
         return R_CMD_STATUS_ERROR;
     }
 
-    CString host    = "https://api.reveng.ai"; // Hardcoded host value 
+    CString host    = "https://api.reveng.ai"; // Hardcoded host value
     CString api_key = argv[2];
 
     /* attempt saving config */
@@ -228,13 +228,9 @@ R_IPI RCmdStatus reai_apply_existing_analysis_handler (RCore* core, int argc, co
         }
     }
 
-    Bool rename_unknown_only =
-        r_cons_yesno ('y', "Apply analysis only to unknown functions? [Y/n]");
-
     if (reai_plugin_apply_existing_analysis (
             core,
-            r_num_get (core->num, argv[1]), // binary id
-            !rename_unknown_only            // apply analysis to all?
+            r_num_get (core->num, argv[1]) // binary id
         )) {
         DISPLAY_INFO ("Existing analysis applied sucessfully");
         return R_CMD_STATUS_OK;
@@ -278,15 +274,13 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
     Uint32 min_confidence = r_num_get (core->num, argv[1]);
     min_confidence        = min_confidence > 100 ? 100 : min_confidence;
 
-    Bool debug_mode          = r_cons_yesno ('y', "Enable debug symbol suggestions? [Y/n]");
-    Bool rename_unknown_only = r_cons_yesno ('y', "Rename unknown functions only? [Y/n]");
+    Bool debug_mode = r_cons_yesno ('y', "Enable debug symbol suggestions? [Y/n]");
 
     if (reai_plugin_auto_analyze_opened_binary_file (
             core,
             max_results_per_function,
             min_confidence / 100.f,
-            debug_mode,
-            !rename_unknown_only // apply_to_all = !rename_unknown
+            debug_mode
         )) {
         DISPLAY_INFO ("Auto-analysis completed successfully.");
         return R_CMD_STATUS_OK;

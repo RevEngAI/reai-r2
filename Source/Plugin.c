@@ -145,6 +145,7 @@ PRIVATE CString get_function_name_with_max_confidence (
 
     Float64 max_confidence = 0;
     CString fn_name        = NULL;
+    CString src_name       = NULL;
     REAI_VEC_FOREACH (fn_matches, fn_match, {
         /* if function name starts with FUN_ then no need to rename */
         if (!strncmp (fn_match->nn_function_name, "FUN_", 4)) {
@@ -155,6 +156,7 @@ PRIVATE CString get_function_name_with_max_confidence (
         if ((fn_match->confidence > max_confidence) &&
             (fn_match->origin_function_id == origin_fn_id)) {
             fn_name        = fn_match->nn_function_name;
+            src_name       = fn_match->nn_binary_name;
             max_confidence = fn_match->confidence;
         }
     });
@@ -164,7 +166,17 @@ PRIVATE CString get_function_name_with_max_confidence (
         *required_confidence = max_confidence;
     }
 
-    return fn_name;
+    if (!fn_name) {
+        return NULL;
+    }
+
+    // HACK(brightprogrammer): Instead of allocating again and again,
+    // just create a static buffer we assume is large enough to store function names
+    // and for anything larger than this we just truncate.
+    static char buf[1024];
+    snprintf (buf, 1023, "%s.%s", fn_name, src_name ? src_name : "");
+
+    return buf;
 }
 
 /**
@@ -692,13 +704,11 @@ Bool reai_plugin_create_analysis_for_opened_binary_file (
  *
  * @param[in]  core
  * @param[in]  bin_id        RevEng.AI analysis binary ID.
- * @param[in]  apply_to_all  Rename all functions, even those with valid names.
- *                           Otherwise, rename just those starting with "fcn.".
  *
  * @return True on successful application of renames
  * @return False otherwise.
  * */
-Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id, Bool apply_to_all) {
+Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id) {
     if (!core) {
         APPEND_ERROR ("Invalid radare core provided. Cannot apply analysis.");
         return false;
@@ -808,34 +818,26 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id, Bool
                 continue;
             }
 
-            // Rename only those functions whose name starts with "fcn."
-            if (apply_to_all || !strncmp (r_fn->name, "fcn.", 4)) {
-                // NOTE: Not comparing function size here. Can this create problems in future??
-                if (radare_analysis_function_force_rename (r_fn, new_name)) {
-                    reai_plugin_table_add_rowf (
-                        successful_renames,
-                        "ssx",
-                        old_name,
-                        r_fn->name,
-                        fn_addr
-                    );
-                    success_cases_exist = true;
-                } else {
-                    reai_plugin_table_add_rowf (
-                        failed_renames,
-                        "sssx",
-                        old_name,
-                        new_name,
-                        "radare rename error",
-                        fn_addr
-                    );
-                    failed_cases_exist = true;
-                }
-            } else {
-                REAI_LOG_INFO (
-                    "Not renaming. Human readbale name already present : \"%s\"",
-                    r_fn->name
+            // NOTE(brightprogrammer): Not comparing function size here. Can this create problems in future??
+            if (radare_analysis_function_force_rename (r_fn, new_name)) {
+                reai_plugin_table_add_rowf (
+                    successful_renames,
+                    "ssx",
+                    old_name,
+                    r_fn->name,
+                    fn_addr
                 );
+                success_cases_exist = true;
+            } else {
+                reai_plugin_table_add_rowf (
+                    failed_renames,
+                    "sssx",
+                    old_name,
+                    new_name,
+                    "radare rename error",
+                    fn_addr
+                );
+                failed_cases_exist = true;
             }
         } else { // If no radare funciton exists at given address
             reai_plugin_table_add_rowf (
@@ -915,8 +917,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
     RCore  *core,
     Size    max_results_per_function,
     Float64 min_confidence,
-    Bool    debug_mode,
-    Bool    apply_to_all
+    Bool    debug_mode
 ) {
     if (!core) {
         APPEND_ERROR ("Invalid radare core provided. Cannot perform auto-analysis.");
@@ -979,7 +980,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
     }
     reai_plugin_table_set_columnsf (
         successful_renames,
-        "ssfn",
+        "ssnn",
         "Old Name",
         "New Name",
         "Confidence",
@@ -1034,58 +1035,51 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
 
             /* get function */
             RAnalFunction *r_fn = r_anal_get_function_at (core->anal, fn_addr);
-            if (apply_to_all || !strncmp (r_fn->name, "fcn.", 4)) {
-                if (r_fn) {
-                    if (radare_analysis_function_force_rename (r_fn, new_name)) {
-                        reai_plugin_table_add_rowf (
-                            successful_renames,
-                            "ssfx",
-                            old_name,
-                            new_name,
-                            confidence,
-                            fn_addr
-                        );
+            if (r_fn) {
+                if (radare_analysis_function_force_rename (r_fn, new_name)) {
+                    reai_plugin_table_add_rowf (
+                        successful_renames,
+                        "ssfx",
+                        old_name,
+                        new_name,
+                        confidence,
+                        fn_addr
+                    );
 
-                        reai_fn_info_vec_append (
-                            new_name_mapping,
-                            &((ReaiFnInfo) {.name = new_name, .id = fn->id})
-                        );
+                    reai_fn_info_vec_append (
+                        new_name_mapping,
+                        &((ReaiFnInfo) {.name = new_name, .id = fn->id})
+                    );
 
-                        success_cases_exist = true;
-                    } else {
-                        reai_plugin_table_add_rowf (
-                            failed_renames,
-                            "sssx",
-                            old_name,
-                            new_name,
-                            "radare rename error",
-                            fn_addr
-                        );
-                        failed_cases_exist = true;
-                    }
-                } else { // If no radare funciton exists at given address
+                    success_cases_exist = true;
+                } else {
                     reai_plugin_table_add_rowf (
                         failed_renames,
                         "sssx",
                         old_name,
                         new_name,
-                        "function not found",
+                        "radare rename error",
                         fn_addr
                     );
                     failed_cases_exist = true;
                 }
-            } else {
-                REAI_LOG_TRACE (
-                    "Skipping rename for \"%s\". Name already looks valid to me",
-                    r_fn->name
+            } else { // If no radare funciton exists at given address
+                reai_plugin_table_add_rowf (
+                    failed_renames,
+                    "sssx",
+                    old_name,
+                    new_name,
+                    "function not found",
+                    fn_addr
                 );
+                failed_cases_exist = true;
             }
         } else { // If not able to find a function with given confidence
             reai_plugin_table_add_rowf (
                 failed_renames,
                 "sssx",
                 old_name,
-                "n/a",
+                "N/A",
                 "match not found",
                 fn->vaddr
             );
