@@ -1,6 +1,8 @@
 FROM ubuntu:latest
 ENV DEBIAN_FRONTEND=noninteractive
 
+ARG apikey
+
 # Install all required packages
 RUN apt-get update && \
   apt-get install -y \
@@ -29,7 +31,7 @@ RUN echo 'revengai ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 # TODO: (FOR THE USER) Create config file
 RUN printf "\
   host         =\"https://api.reveng.ai\"\n \
-  apikey       = \"APIKEY\"\n \
+  apikey       = \"$apikey\"\n \
   " > /home/revengai/.creait.toml
 
 RUN printf "export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH" > /home/revengai/.bashrc

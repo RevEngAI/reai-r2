@@ -11,9 +11,8 @@ Just do :
 
 ```bash
 git clone https://github.com/revengai/reai-r2 && 
-cd reai-r2 && sed -i -e 's/APIKEY/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/g' Dockerfile && 
-docker build -t reai-r2 . &&
-docker run -v /tmp/userdata:/home/revengai/userdata -it reai-rz
+cd reai-r2 && docker build --build-arg apikey=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx -t reai-r2 . &&
+docker run -v /tmp/userdata:/home/revengai/userdata -it reai-r2
 ```
 
 This will get you a working installation of the radare plugin in a single command!
@@ -21,8 +20,8 @@ This will get you a working installation of the radare plugin in a single comman
 - Store the files you want to access into `/tmp/userdata` directory of host,
   and access these files through `~/userdata` inside the docker container.
 
-- To be able to use the plugin in one single command. Make sure to initialize your plugin with
-  `REi <api-key>` command. Get your API key from RevEngAI portal.
+- Make sure to put correct value for `apikey` build arg. You can also change it after installing
+  though, through directly editing config file, or using the `REi` command inside the plugin.
 
 ### Manual
 
