@@ -176,7 +176,7 @@ R_IPI RCmdStatus reai_create_analysis_handler (RCore* core, int argc, const char
                 'y',
                 "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
             )) {
-            r_core_cmd_call (core, "aaaa");
+            r_core_cmd_call (core, "aaaaa");
         }
     }
 
@@ -224,7 +224,7 @@ R_IPI RCmdStatus reai_apply_existing_analysis_handler (RCore* core, int argc, co
                 'y',
                 "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
             )) {
-            r_core_cmd_call (core, "aaaa");
+            r_core_cmd_call (core, "aaaaa");
         }
     }
 
@@ -417,7 +417,7 @@ R_IPI RCmdStatus reai_get_basic_function_info_handler (RCore* core, int argc, co
                 'y',
                 "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
             )) {
-            r_core_cmd_call (core, "aaaa");
+            r_core_cmd_call (core, "aaaaa");
         }
     }
 
@@ -501,7 +501,7 @@ R_IPI RCmdStatus reai_rename_function_handler (RCore* core, int argc, const char
                 'y',
                 "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
             )) {
-            r_core_cmd_call (core, "aaaa");
+            r_core_cmd_call (core, "aaaaa");
         }
     }
 
@@ -559,7 +559,7 @@ R_IPI RCmdStatus
                 'y',
                 "Rizin analysis not performed yet. Should I create one for you? [Y/n]"
             )) {
-            r_core_cmd_call (core, "aaaa");
+            r_core_cmd_call (core, "aaaaa");
         }
     }
 

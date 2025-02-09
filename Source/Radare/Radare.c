@@ -100,125 +100,42 @@ int reai_r2_core_fini (void *user, const char *cmd) {
 int reai_r2_core_cmd (void *user, const char *input) {
     RCore *core = (RCore *)user;
 
+    struct {
+        CString cmd;
+        RCmdStatus (*handler) (RCore *core, int argc, const char **argv);
+    } cmd_to_handler[] = {
+        {  "REi",          reai_plugin_initialize_handler},
+        {  "REm",   reai_list_available_ai_models_handler},
+        {  "REh",               reai_health_check_handler},
+        {  "REd",               reai_ai_decompile_handler},
+
+        {  "REa",            reai_create_analysis_handler},
+        { "REau",           reai_ann_auto_analyze_handler},
+        { "REap",    reai_apply_existing_analysis_handler},
+
+        { "REfl",    reai_get_basic_function_info_handler},
+        { "REfr",            reai_rename_function_handler},
+        { "REfs", reai_function_similarity_search_handler},
+
+        {"REart",          reai_show_revengai_art_handler},
+    };
+    size_t num_cmds = sizeof (cmd_to_handler) / sizeof (cmd_to_handler[0]);
+
     if (r_str_startswith (input, "RE")) {
         int          argc = 0;
         const char **argv = NULL;
         split_args (input, &argc, (char ***)&argv);
 
-        switch (input[2]) {
-            // RE or RE?
-            case '\0' :
-            case '?' : {
-                reai_show_help_handler (core, argc, argv);
-                break;
+        bool cmd_dispatched = false;
+        for (size_t c = 0; c < num_cmds; c++) {
+            if (!strcmp (argv[0], cmd_to_handler[c].cmd)) {
+                cmd_to_handler[c].handler (core, argc, argv);
+                cmd_dispatched = true;
             }
+        }
 
-            // REi
-            case 'i' : {
-                reai_plugin_initialize_handler (core, argc, argv);
-                break;
-            }
-
-            // REm
-            case 'm' : {
-                reai_list_available_ai_models_handler (core, argc, argv);
-                break;
-            }
-
-            // REh
-            case 'h' : {
-                reai_health_check_handler (core, argc, argv);
-                break;
-            }
-
-            case 'd' : {
-                reai_ai_decompile_handler (core, argc, argv);
-                break;
-            }
-
-            // REu
-            /* case 'u' : { */
-            /*     reai_upload_bin_handler (core, argc, argv); */
-            /*     break; */
-            /* } */
-
-            // REa
-            case 'a' : {
-                switch (input[3]) {
-                    // REa
-                    case '\0' :
-                    case ' ' :
-                    case '?' : {
-                        reai_create_analysis_handler (core, argc, argv);
-                        break;
-                    }
-
-                    // REau
-                    case 'u' : {
-                        reai_ann_auto_analyze_handler (core, argc, argv);
-                        break;
-                    }
-
-                    // REap
-                    case 'p' : {
-                        reai_apply_existing_analysis_handler (core, argc, argv);
-                        break;
-                    }
-
-                    // REart
-                    case 'r' : {
-                        if (input[4] == 't') {
-                            reai_show_revengai_art_handler (core, argc, argv);
-                            break;
-                        } else {
-                            reai_show_revengai_art_handler (core, argc, argv);
-                        }
-                    }
-
-                    // RE?
-                    default : {
-                        reai_show_help_handler (core, argc, argv);
-                        break;
-                    }
-                }
-                break;
-            }
-
-            // REf
-            case 'f' : {
-                switch (input[3]) {
-                    // REfl
-                    case 'l' : {
-                        reai_get_basic_function_info_handler (core, argc, argv);
-                        break;
-                    }
-
-                    // REfr
-                    case 'r' : {
-                        reai_rename_function_handler (core, argc, argv);
-                        break;
-                    }
-
-                    // REfs
-                    case 's' : {
-                        reai_apply_existing_analysis_handler (core, argc, argv);
-                        break;
-                    }
-
-                    // RE?
-                    default : {
-                        reai_show_help_handler (core, argc, argv);
-                        break;
-                    }
-                }
-                break;
-            }
-
-            // RE?
-            default : {
-                reai_show_help_handler (core, argc, argv);
-                break;
-            }
+        if (!cmd_dispatched) {
+            reai_show_help_handler (core, argc, argv);
         }
 
         free_args (argc, (char **)argv);
