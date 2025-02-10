@@ -703,36 +703,46 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id) {
 
     /* an analysis must already exist in order to make auto-analysis work */
     ReaiAnalysisStatus analysis_status = reai_get_analysis_status (reai(), reai_response(), bin_id);
-    if (analysis_status != REAI_ANALYSIS_STATUS_COMPLETE) {
-        switch (analysis_status) {
-            case REAI_ANALYSIS_STATUS_ERROR : {
-                APPEND_WARN (
-                    "There seems to be a problem with analysis.\n"
-                    "Please restart the analysis, or check the provided binary ID."
-                );
-                return false;
-            }
-            case REAI_ANALYSIS_STATUS_QUEUED : {
-                APPEND_WARN (
-                    "Analysis for given binary ID hasn't started yet.\n"
-                    "Please try again after sometime."
-                );
-                return false;
-            }
-            case REAI_ANALYSIS_STATUS_PROCESSING : {
-                APPEND_WARN (
-                    "Analysis for given binary ID is not complete yet.\n"
-                    "Please try again after sometime."
-                );
-                return false;
-            }
-            default : {
-                APPEND_WARN (
-                    "Failed to get analysis information of current binary.\n"
-                    "Check the binary ID once more."
-                );
-                return false;
-            }
+    switch (analysis_status) {
+        case REAI_ANALYSIS_STATUS_ERROR : {
+            APPEND_ERROR (
+                "The applied/created RevEngAI analysis has errored out.\n"
+                "I need a complete analysis to get function info.\n"
+                "Please restart analysis."
+            );
+            return false;
+        }
+        case REAI_ANALYSIS_STATUS_QUEUED : {
+            APPEND_ERROR (
+                "The applied/created RevEngAI analysis is currently in queue.\n"
+                "Please wait for the analysis to be analyzed."
+            );
+            return false;
+        }
+        case REAI_ANALYSIS_STATUS_PROCESSING : {
+            APPEND_ERROR (
+                "The applied/created RevEngAI analysis is currently being processed (analyzed).\n"
+                "Please wait for the analysis to complete."
+            );
+            return false;
+        }
+        case REAI_ANALYSIS_STATUS_COMPLETE : {
+            REAI_LOG_TRACE ("Analysis for binary ID %llu is COMPLETE.", reai_binary_id());
+            break;
+        }
+        default : {
+            APPEND_ERROR (
+                "Oops... something bad happened :-(\n"
+                "I got an invalid value for RevEngAI analysis status.\n"
+                "Consider\n"
+                "\t- Checking the binary ID, reapply the correct one if wrong\n"
+                "\t- Retrying the command\n"
+                "\t- Restarting the plugin\n"
+                "\t- Checking logs in $TMPDIR or $TMP or $PWD (reai_<pid>)\n"
+                "\t- Checking the connection with RevEngAI host.\n"
+                "\t- Contacting support if the issue persists\n"
+            );
+            return false;
         }
     }
 
@@ -1183,6 +1193,56 @@ Bool reai_plugin_search_and_show_similar_functions (
     if (!fcn_name) {
         APPEND_ERROR ("Invalid function name porivded. Cannot perform similarity search.");
         return false;
+    }
+
+    if (!reai_binary_id()) {
+        APPEND_ERROR (
+            "No analysis created or applied. I need a RevEngAI analysis to get function info."
+        );
+        return false;
+    }
+
+    ReaiAnalysisStatus status = reai_plugin_get_analysis_status_for_binary_id (reai_binary_id());
+    switch (status) {
+        case REAI_ANALYSIS_STATUS_ERROR : {
+            APPEND_ERROR (
+                "The applied/created RevEngAI analysis has errored out.\n"
+                "I need a complete analysis to get function info. Please restart analysis."
+            );
+            return false;
+        }
+        case REAI_ANALYSIS_STATUS_QUEUED : {
+            APPEND_ERROR (
+                "The applied/created RevEngAI analysis is currently in queue.\n"
+                "Please wait for the analysis to be analyzed."
+            );
+            return false;
+        }
+        case REAI_ANALYSIS_STATUS_PROCESSING : {
+            APPEND_ERROR (
+                "The applied/created RevEngAI analysis is currently being processed (analyzed).\n"
+                "Please wait for the analysis to complete."
+            );
+            return false;
+        }
+        case REAI_ANALYSIS_STATUS_COMPLETE : {
+            REAI_LOG_TRACE ("Analysis for binary ID %llu is COMPLETE.", reai_binary_id());
+            break;
+        }
+        default : {
+            APPEND_ERROR (
+                "Oops... something bad happened :-(\n"
+                "I got an invalid value for RevEngAI analysis status.\n"
+                "Consider\n"
+                "\t- Checking the binary ID, reapply the correct one if wrong\n"
+                "\t- Retrying the command\n"
+                "\t- Restarting the plugin\n"
+                "\t- Checking logs in $TMPDIR or $TMP or $PWD (reai_<pid>)\n"
+                "\t- Checking the connection with RevEngAI host.\n"
+                "\t- Contacting support if the issue persists\n"
+            );
+            return false;
+        }
     }
 
     RAnalFunction *fn = r_anal_get_function_byname (core->anal, fcn_name);
