@@ -1182,7 +1182,7 @@ Bool reai_plugin_search_and_show_similar_functions (
     RCore  *core,
     CString fcn_name,
     Size    max_results_count,
-    Float32 confidence,
+    Uint32  confidence,
     Bool    debug_mode
 ) {
     if (!core) {

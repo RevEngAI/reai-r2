@@ -80,7 +80,7 @@ extern "C" {
                   RCore  *core,
                   CString fcn_name,
                   Size    max_results,
-                  Float32 confidence,
+                  Uint32  confidence,
                   Bool    debug_mode
               );
 
