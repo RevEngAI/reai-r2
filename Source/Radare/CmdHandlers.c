@@ -429,6 +429,7 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
                 CString code = reai_plugin_get_decompiled_code_at (core, rfn->addr);
                 if (code) {
                     r_cons_println (code);
+                    r_cons_flush();
                     FREE (code);
                 }
                 return R_CMD_STATUS_OK;

@@ -46,6 +46,8 @@ void reai_plugin_display_msg (ReaiLogLevel level, CString msg) {
         }
         v->count = 0;
     }
+
+    r_cons_flush();
 }
 
 /**
