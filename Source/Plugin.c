@@ -372,10 +372,14 @@ Bool reai_plugin_init (RCore *core) {
 
     if (!reai_plugin_add_bg_work (perform_auth_check_in_bg, reai_plugin())) {
         REAI_LOG_ERROR ("Failed to add perform-auth-check bg worker.");
+    } else {
+        REAI_LOG_TRACE ("Performing auth check in background...");
     }
 
     if (!reai_plugin_add_bg_work (get_ai_models_in_bg, reai_plugin())) {
         REAI_LOG_ERROR ("Failed to add get-ai-models bg worker.");
+    } else {
+        REAI_LOG_TRACE ("Fetching available ai models in background...");
     }
 
     // get binary id
@@ -1259,7 +1263,7 @@ Bool reai_plugin_search_and_show_similar_functions (
         return false;
     }
 
-    Float32            maxDistance = 1 - confidence;
+    Float32            maxDistance = 1 - confidence / 100.f;
     ReaiAnnFnMatchVec *fnMatches   = reai_batch_function_symbol_ann (
         reai(),
         reai_response(),

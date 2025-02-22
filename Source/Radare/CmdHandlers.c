@@ -48,7 +48,6 @@ R_IPI RCmdStatus reai_show_help_handler (RCore* core, int argc, const char** arg
         "| REi <api_key>              # Initialize plugin config.\n"
         "| REm                        # Get all available models for analysis.\n"
         "| REh                        # Check connection status with RevEngAI servers.\n"
-        "| REu                        # Upload currently loaded binary to RevEngAI servers.\n"
         "| REa <prog_name> <cmd_line_args> <ai_model> # Upload and analyse currently loaded "
         "binary.\n"
         "| REau[?] <min_confidence>   # Auto analyze binary functions using ANN and perform batch "
@@ -121,11 +120,21 @@ R_IPI RCmdStatus reai_list_available_ai_models_handler (RCore* core, int argc, c
 
     if (reai_ai_models()) {
         REAI_VEC_FOREACH (reai_ai_models(), model, { r_cons_println (*model); });
-        return R_CMD_STATUS_OK;
     } else {
-        DISPLAY_ERROR ("Seems like background worker failed to get available AI models.");
-        return R_CMD_STATUS_ERROR;
+        // HACK(brightprogrammer): For now
+        // Somehow the background worker is failing to fetch latest AI models
+        // So I'm just hardcoding this here for now. At the time of writing, this model
+        // is very new and I hope it'll be for at least a few weeks.
+        // In the mean time I can figure out why the background worker is not getting AI models.
+        r_cons_printf (
+            "binnet-0.5-x86-windows\n"
+            "binnet-0.5-x86-linux\n"
+            "binnet-0.5-x86-macos\n"
+            "binnet-0.5-x86-android\n"
+        );
+        REAI_LOG_ERROR ("Seems like background worker failed to get available AI models.");
     }
+    return R_CMD_STATUS_ERROR;
 }
 
 /**
@@ -410,6 +419,7 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
                     return R_CMD_STATUS_ERROR;
                 }
                 error_count++;
+                break;
             case REAI_AI_DECOMPILATION_STATUS_UNINITIALIZED :
                 DISPLAY_INFO ("No decompilation exists for this function...");
                 reai_plugin_decompile_at (core, rfn->addr);
