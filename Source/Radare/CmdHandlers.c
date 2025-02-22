@@ -275,7 +275,7 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
     Uint32 min_confidence = r_num_get (core->num, argv[1]);
     min_confidence        = min_confidence > 100 ? 100 : min_confidence;
 
-    Bool debug_mode = r_cons_yesno ('y', "Enable debug symbol suggestions? [Y/n]");
+    Bool debug_mode = r_cons_yesno ('y', "Restrict suggestions to debug symbols? [Y/n]");
 
     if (reai_plugin_auto_analyze_opened_binary_file (
             core,
@@ -399,6 +399,7 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
                         "Looks like the decompilation process failed last time\n"
                         "I'll restart the decompilation process again..."
                     );
+                    reai_plugin_decompile_at (core, rfn->addr);
                 } else if (error_count > 1) {
                     DISPLAY_ERROR (
                         "Failed to decompile \"%s\"\n"
@@ -696,7 +697,7 @@ R_IPI RCmdStatus
     min_confidence    = (argc > 2) ? (Uint32)r_num_math (core->num, argv[2]) : min_confidence;
     max_results_count = (argc > 3) ? (Uint32)r_num_math (core->num, argv[3]) : max_results_count;
 
-    Bool debug_mode = r_cons_yesno ('y', "Enable debug symbol suggestions? [Y/n]");
+    Bool debug_mode = r_cons_yesno ('y', "Restrict suggestions to debug symbols? [Y/n]");
 
     if (!reai_plugin_search_and_show_similar_functions (
             core,

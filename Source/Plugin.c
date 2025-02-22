@@ -1435,13 +1435,13 @@ Bool reai_plugin_decompile_at (RCore *core, ut64 addr) {
 ReaiAiDecompilationStatus reai_plugin_check_decompiler_status_running_at (RCore *core, ut64 addr) {
     if (!core) {
         APPEND_ERROR ("Invalid arguments");
-        return false;
+        return REAI_AI_DECOMPILATION_STATUS_ERROR;
     }
 
     RAnalFunction *fn    = r_anal_get_function_at (core->anal, addr);
     ReaiFunctionId fn_id = reai_plugin_get_function_id_for_radare_function (core, fn);
     if (!fn_id) {
-        return false;
+        return REAI_AI_DECOMPILATION_STATUS_ERROR;
     }
 
     return reai_poll_ai_decompilation (reai(), reai_response(), fn_id);
