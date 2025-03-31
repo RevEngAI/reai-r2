@@ -109,28 +109,28 @@ const char *radare_analysis_function_force_rename (RAnalFunction *fcn, CString n
 
 /**
  * @b Get name of function with given origin function id having max
- *    confidence.
+ *    similarity.
  *
- * If multiple functions have same confidence level then the one that appears
+ * If multiple functions have same similarity level then the one that appears
  * first in the array will be returned.
  *
  * Returned pointer MUST NOT freed because it is owned by given @c fn_matches
  * vector. Destroying the vector will automatically free the returned string.
  *
- * @param fn_matches Array that contains all functions with their confidence levels.
+ * @param fn_matches Array that contains all functions with their similarity levels.
  * @param origin_fn_id Function ID to search for.
- * @param confidence Pointer to @c Float64 value specifying min confidence level.
- *        If not @c NULL then value of max confidence of returned function name will
+ * @param similarity Pointer to @c Float64 value specifying min similarity level.
+ *        If not @c NULL then value of max similarity of returned function name will
  *        be stored in this pointer.
- *        If @c NULL then just the function with max confidence will be selected.
+ *        If @c NULL then just the function with max similarity will be selected.
  *
  * @return @c Pointer to an item from the provided vector on success. 
  * @return @c NULL otherwise.
  * */
-PRIVATE ReaiAnnFnMatch *get_function_match_with_confidence (
+PRIVATE ReaiAnnFnMatch *get_function_match_with_similarity (
     ReaiAnnFnMatchVec *fn_matches,
     ReaiFunctionId     origin_fn_id,
-    Float64            required_confidence
+    Float64           *required_similarity
 ) {
     if (!fn_matches) {
         APPEND_ERROR ("Function matches are invalid. Cannot proceed.");
@@ -142,7 +142,7 @@ PRIVATE ReaiAnnFnMatch *get_function_match_with_confidence (
         return NULL;
     }
 
-    Float64         max_confidence = 0;
+    Float64         max_similarity = 0;
     ReaiAnnFnMatch *fn             = NULL;
     REAI_VEC_FOREACH (fn_matches, fn_match, {
         /* if function name starts with FUN_ then no need to rename */
@@ -150,15 +150,16 @@ PRIVATE ReaiAnnFnMatch *get_function_match_with_confidence (
             continue;
         }
 
-        /* otherwise find function with max confidence */
-        if ((fn_match->confidence > max_confidence) &&
+        /* otherwise find function with max similarity */
+        if ((fn_match->confidence > max_similarity) &&
             (fn_match->origin_function_id == origin_fn_id)) {
             fn             = fn_match;
-            max_confidence = fn_match->confidence;
+            max_similarity = fn_match->confidence;
         }
     });
 
-    return max_confidence >= required_confidence ? fn : NULL;
+    return max_similarity >= *required_similarity ? (*required_similarity = max_similarity, fn) :
+                                                    NULL;
 }
 
 /**
@@ -217,9 +218,9 @@ PRIVATE ReaiFnInfoVec *get_fn_infos (ReaiBinaryId bin_id) {
 PRIVATE ReaiAnnFnMatchVec *get_fn_matches (
     ReaiBinaryId bin_id,
     Uint32       max_results,
-    Float64      max_dist,
+    Float64      min_similarity,
     CStrVec     *collections,
-    Bool         debug_mode
+    Bool         debug_filter
 ) {
     if (!bin_id) {
         APPEND_ERROR ("Invalid binary ID provided. Cannot get function matches.");
@@ -231,9 +232,9 @@ PRIVATE ReaiAnnFnMatchVec *get_fn_matches (
         reai_response(),
         bin_id,
         max_results,
-        max_dist,
+        1 - min_similarity, // max ann distance is computed by `1 - min-similarity`
         collections,
-        debug_mode
+        debug_filter
     );
 
     if (!fn_matches) {
@@ -899,8 +900,8 @@ ReaiAnalysisStatus reai_plugin_get_analysis_status_for_binary_id (ReaiBinaryId b
 Bool reai_plugin_auto_analyze_opened_binary_file (
     RCore  *core,
     Size    max_results_per_function,
-    Float64 min_confidence,
-    Bool    debug_mode
+    Float64 min_similarity,
+    Bool    debug_filter
 ) {
     if (!core) {
         APPEND_ERROR ("Invalid radare core provided. Cannot perform auto-analysis.");
@@ -936,7 +937,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
 
     /* function matches */
     ReaiAnnFnMatchVec *fn_matches =
-        get_fn_matches (bin_id, max_results_per_function, 1 - min_confidence, NULL, debug_mode);
+        get_fn_matches (bin_id, max_results_per_function, min_similarity, NULL, debug_filter);
     if (!fn_matches) {
         APPEND_ERROR ("Failed to get function matches for opened binary.");
         reai_fn_info_vec_destroy (fn_infos);
@@ -967,7 +968,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
         "Old Name",
         "New Name",
         "Source Binary",
-        "Confidence",
+        "Similarity",
         "Address"
     );
 #define ADD_TO_SUCCESSFUL_RENAME()                                                                 \
@@ -978,7 +979,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
             old_name,                                                                              \
             sim_match->nn_function_name,                                                           \
             sim_match->nn_binary_name,                                                             \
-            min_confidence,                                                                        \
+            min_similarity,                                                                        \
             fn_addr                                                                                \
         );                                                                                         \
                                                                                                    \
@@ -990,24 +991,7 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
         success_cases_exist = true;                                                                \
     } while (0)
 
-    ReaiPluginTable *failed_renames = reai_plugin_table_create();
-    if (!failed_renames) {
-        APPEND_ERROR ("Failed to create table to display new name mapping.");
-        reai_fn_info_vec_destroy (new_name_mapping);
-        reai_ann_fn_match_vec_destroy (fn_matches);
-        reai_fn_info_vec_destroy (fn_infos);
-        reai_plugin_table_destroy (successful_renames);
-        return false;
-    }
-    reai_plugin_table_set_columnsf (failed_renames, "ssn", "Old Name", "Reason", "Address");
-#define ADD_TO_FAILED_RENAME(resn)                                                                 \
-    do {                                                                                           \
-        reai_plugin_table_add_rowf (failed_renames, "ssx", old_name, resn, fn_addr);               \
-        failed_cases_exist = true;                                                                 \
-    } while (0)
-
     Bool success_cases_exist = false;
-    Bool failed_cases_exist  = false;
 
     /* display information about what renames will be performed 
      * add rename information to new name mapping *
@@ -1021,9 +1005,10 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
 
         Uint64 fn_addr = fn->vaddr + reai_plugin_get_opened_binary_file_baseaddr (core);
 
-        /* if we get a match with required confidence level then we add to rename */
+        /* if we get a match with required similarity level then we add to rename */
         ReaiAnnFnMatch *sim_match = NULL;
-        if ((sim_match = get_function_match_with_confidence (fn_matches, fn->id, min_confidence))) {
+        if ((sim_match =
+                 get_function_match_with_similarity (fn_matches, fn->id, &min_similarity))) {
             /* If functions already are same then no need to rename */
             if (!strcmp (sim_match->nn_function_name, old_name)) {
                 REAI_LOG_INFO (
@@ -1049,10 +1034,18 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
                 ADD_TO_SUCCESSFUL_RENAME();
                 r_strbuf_fini (&new_name_buf);
             } else { // If function not found at address
-                ADD_TO_FAILED_RENAME ("function not found");
+                REAI_LOG_ERROR (
+                    "function not found (.old_name = \"%s\", .addr = 0x%lx)",
+                    old_name,
+                    fn_addr
+                );
             }
-        } else {     // If not able to find a function with given confidence
-            ADD_TO_FAILED_RENAME ("match not found");
+        } else { // If not able to find a function with given similarity
+            REAI_LOG_ERROR (
+                "similar match not found (.old_name = \"%s\", .addr = 0x%lx)",
+                old_name,
+                fn_addr
+            );
         }
     });
 
@@ -1062,10 +1055,6 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
 
     if (success_cases_exist) {
         reai_plugin_table_show (successful_renames);
-    }
-
-    if (failed_cases_exist) {
-        reai_plugin_table_show (failed_renames);
     }
 
     /* perform a batch rename */
@@ -1083,7 +1072,6 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
     }
 
     reai_plugin_table_destroy (successful_renames);
-    reai_plugin_table_destroy (failed_renames);
     reai_fn_info_vec_destroy (new_name_mapping);
     reai_ann_fn_match_vec_destroy (fn_matches);
     reai_fn_info_vec_destroy (fn_infos);
@@ -1170,10 +1158,10 @@ ReaiFunctionId reai_plugin_get_function_id_for_radare_function (RCore *core, RAn
  * @b Get a table of similar function name data.
  *
  * @param core
- * @param fcn_name Function name to search simlar functions for,
- * @param max_results_count
- * @param confidence
- * @param debug_mode
+ * @param fcn_name Function name to search simlar functionsns for,
+ * @param max_results_count Maximum number of results per function.
+ * @param min_similarity Minimum required similarity level for a good match.
+ * @param debug_filter Restrict search suggestions to debug symbols only. 
  *
  * @return @c ReaiPluginTable containing search suggestions on success.
  * @return @c NULL when no suggestions found.
@@ -1182,8 +1170,8 @@ Bool reai_plugin_search_and_show_similar_functions (
     RCore  *core,
     CString fcn_name,
     Size    max_results_count,
-    Uint32  confidence,
-    Bool    debug_mode
+    Uint32  min_similarity,
+    Bool    debug_filter
 ) {
     if (!core) {
         APPEND_ERROR ("Invalid radare core porivded. Cannot perform similarity search.");
@@ -1259,7 +1247,8 @@ Bool reai_plugin_search_and_show_similar_functions (
         return false;
     }
 
-    Float32            maxDistance = 1 - confidence;
+    // Max ANN distance from one node to another is computed as 1 - (minimum similarity level)
+    Float32            maxDistance = 1 - min_similarity;
     ReaiAnnFnMatchVec *fnMatches   = reai_batch_function_symbol_ann (
         reai(),
         reai_response(),
@@ -1268,7 +1257,7 @@ Bool reai_plugin_search_and_show_similar_functions (
         max_results_count,
         maxDistance,
         NULL, // collections
-        debug_mode
+        debug_filter
     );
 
     if (fnMatches->count) {
@@ -1278,7 +1267,7 @@ Bool reai_plugin_search_and_show_similar_functions (
             table,
             "sfns",
             "Function Name",
-            "Confidence",
+            "Similarity",
             "Function ID",
             "Binary Name"
         );
@@ -1289,15 +1278,15 @@ Bool reai_plugin_search_and_show_similar_functions (
                 table,
                 "sfns",
                 fnMatch->nn_function_name,
-                fnMatch->confidence,
+                fnMatch->confidence, // is actually similarity, but named confidence in API
                 fnMatch->nn_function_id,
                 fnMatch->nn_binary_name
             );
             REAI_LOG_TRACE (
-                "Similarity Search Suggestion = (.name = \"%s\", .confidence = \"%lf\", "
+                "Similarity Search Suggestion = (.name = \"%s\", .similarity = \"%lf\", "
                 ".function_id = \"%llu\", .binary_name = \"%s\")",
                 fnMatch->nn_function_name,
-                fnMatch->confidence,
+                fnMatch->confidence, // is actually similarity, but named confidence in API
                 fnMatch->nn_function_id,
                 fnMatch->nn_binary_name
             );

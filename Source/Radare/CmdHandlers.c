@@ -51,13 +51,13 @@ R_IPI RCmdStatus reai_show_help_handler (RCore* core, int argc, const char** arg
         "| REu                        # Upload currently loaded binary to RevEngAI servers.\n"
         "| REa <prog_name> <cmd_line_args> <ai_model> # Upload and analyse currently loaded "
         "binary.\n"
-        "| REau[?] <min_confidence>   # Auto analyze binary functions using ANN and perform batch "
+        "| REau[?] <min_similarity>   # Auto analyze binary functions using ANN and perform batch "
         "rename.\n"
         "| REap <bin_id>              # Apply already existing RevEng.AI analysis to this binary.\n"
         "| REd <func_name>            # AI decompile function with given name.\n"
         "| REfl[?]                    # Get & show basic function info for selected binary.\n"
         "| REfr <old_name> <new_name> # Rename function with given function id to given name.\n"
-        "| REfs <function_name> <min_confidence> <max_results> # RevEng.AI ANN functions "
+        "| REfs <function_name> <min_similarity> <max_results> # RevEng.AI ANN functions "
         "similarity search.\n"
         "| REart                      # Show RevEng.AI ASCII art.\n"
     );
@@ -251,7 +251,7 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
     REAI_LOG_TRACE ("[CMD] ANN Auto Analyze Binary");
     if (argc < 2 || r_str_startswith (argv[0], "REau?")) {
         DISPLAY_ERROR (
-            "USAGE : REau <min_confidence>\n"
+            "USAGE : REau <min_similarity>\n"
             "Uploads binary to RevEngAI servers and performs AI based auto analysis."
         );
         return R_CMD_STATUS_ERROR;
@@ -272,16 +272,17 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
     // Just set it to a large enough value to get good suggestions
     const Size max_results_per_function = 10;
 
-    Uint32 min_confidence = r_num_get (core->num, argv[1]);
-    min_confidence        = min_confidence > 100 ? 100 : min_confidence;
+    Uint32 min_similarity = r_num_get (core->num, argv[1]);
+    min_similarity        = min_similarity > 100 ? 100 : min_similarity;
 
-    Bool debug_mode = r_cons_yesno ('y', "Enable debug symbol suggestions? [Y/n]");
+    Bool debug_filter =
+        r_cons_yesno ('y', "Restrict search suggestions to debug symbols only? [Y/n]");
 
     if (reai_plugin_auto_analyze_opened_binary_file (
             core,
             max_results_per_function,
-            min_confidence / 100.f,
-            debug_mode
+            min_similarity / 100.f,
+            debug_filter
         )) {
         DISPLAY_INFO ("Auto-analysis completed successfully.");
         return R_CMD_STATUS_OK;
@@ -674,7 +675,7 @@ R_IPI RCmdStatus
     reai_function_similarity_search_handler (RCore* core, int argc, const char** argv) {
     REAI_LOG_TRACE ("[CMD] Function similarity search");
     if (argc < 2 || r_str_startswith (argv[0], "REfs?")) {
-        DISPLAY_ERROR ("USAGE : REfs <function_name> <min_confidence>=95 <max_results>=20");
+        DISPLAY_ERROR ("USAGE : REfs <function_name> <min_similarity>=95 <max_results>=20");
         return R_CMD_STATUS_ERROR;
     }
 
@@ -690,20 +691,21 @@ R_IPI RCmdStatus
 
     // Parse command line arguments
     CString function_name     = argv[1];
-    Uint32  min_confidence    = 95;
+    Uint32  min_similarity    = 95;
     Uint32  max_results_count = 20;
 
-    min_confidence    = (argc > 2) ? (Uint32)r_num_math (core->num, argv[2]) : min_confidence;
+    min_similarity    = (argc > 2) ? (Uint32)r_num_math (core->num, argv[2]) : min_similarity;
     max_results_count = (argc > 3) ? (Uint32)r_num_math (core->num, argv[3]) : max_results_count;
 
-    Bool debug_mode = r_cons_yesno ('y', "Enable debug symbol suggestions? [Y/n]");
+    Bool debug_filter =
+        r_cons_yesno ('y', "Restrict search suggestions to debug symbols only? [Y/n]");
 
     if (!reai_plugin_search_and_show_similar_functions (
             core,
             function_name,
             max_results_count,
-            min_confidence,
-            debug_mode
+            min_similarity,
+            debug_filter
         )) {
         DISPLAY_ERROR ("Failed to get similar functions search result.");
         return R_CMD_STATUS_ERROR;
