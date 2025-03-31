@@ -48,7 +48,6 @@ R_IPI RCmdStatus reai_show_help_handler (RCore* core, int argc, const char** arg
         "| REi <api_key>              # Initialize plugin config.\n"
         "| REm                        # Get all available models for analysis.\n"
         "| REh                        # Check connection status with RevEngAI servers.\n"
-        "| REu                        # Upload currently loaded binary to RevEngAI servers.\n"
         "| REa <prog_name> <cmd_line_args> <ai_model> # Upload and analyse currently loaded "
         "binary.\n"
         "| REau[?] <min_similarity>   # Auto analyze binary functions using ANN and perform batch "
@@ -121,11 +120,21 @@ R_IPI RCmdStatus reai_list_available_ai_models_handler (RCore* core, int argc, c
 
     if (reai_ai_models()) {
         REAI_VEC_FOREACH (reai_ai_models(), model, { r_cons_println (*model); });
-        return R_CMD_STATUS_OK;
     } else {
-        DISPLAY_ERROR ("Seems like background worker failed to get available AI models.");
-        return R_CMD_STATUS_ERROR;
+        // HACK(brightprogrammer): For now
+        // Somehow the background worker is failing to fetch latest AI models
+        // So I'm just hardcoding this here for now. At the time of writing, this model
+        // is very new and I hope it'll be for at least a few weeks.
+        // In the mean time I can figure out why the background worker is not getting AI models.
+        r_cons_printf (
+            "binnet-0.5-x86-windows\n"
+            "binnet-0.5-x86-linux\n"
+            "binnet-0.5-x86-macos\n"
+            "binnet-0.5-x86-android\n"
+        );
+        REAI_LOG_ERROR ("Seems like background worker failed to get available AI models.");
     }
+    return R_CMD_STATUS_ERROR;
 }
 
 /**
@@ -275,9 +284,7 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
     Uint32 min_similarity = r_num_get (core->num, argv[1]);
     min_similarity        = min_similarity > 100 ? 100 : min_similarity;
 
-    Bool debug_filter =
-        r_cons_yesno ('y', "Restrict search suggestions to debug symbols only? [Y/n]");
-
+    Bool debug_filter = r_cons_yesno ('y', "Restrict suggestions to debug symbols? [Y/n]");
     if (reai_plugin_auto_analyze_opened_binary_file (
             core,
             max_results_per_function,
@@ -400,6 +407,7 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
                         "Looks like the decompilation process failed last time\n"
                         "I'll restart the decompilation process again..."
                     );
+                    reai_plugin_decompile_at (core, rfn->addr);
                 } else if (error_count > 1) {
                     DISPLAY_ERROR (
                         "Failed to decompile \"%s\"\n"
@@ -410,6 +418,7 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
                     return R_CMD_STATUS_ERROR;
                 }
                 error_count++;
+                break;
             case REAI_AI_DECOMPILATION_STATUS_UNINITIALIZED :
                 DISPLAY_INFO ("No decompilation exists for this function...");
                 reai_plugin_decompile_at (core, rfn->addr);
@@ -419,6 +428,7 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
                 CString code = reai_plugin_get_decompiled_code_at (core, rfn->addr);
                 if (code) {
                     r_cons_println (code);
+                    r_cons_flush();
                     FREE (code);
                 }
                 return R_CMD_STATUS_OK;
@@ -697,8 +707,12 @@ R_IPI RCmdStatus
     min_similarity    = (argc > 2) ? (Uint32)r_num_math (core->num, argv[2]) : min_similarity;
     max_results_count = (argc > 3) ? (Uint32)r_num_math (core->num, argv[3]) : max_results_count;
 
+<<<<<<< HEAD
     Bool debug_filter =
         r_cons_yesno ('y', "Restrict search suggestions to debug symbols only? [Y/n]");
+=======
+    Bool debug_mode = r_cons_yesno ('y', "Restrict suggestions to debug symbols? [Y/n]");
+>>>>>>> 5fb3aeeb457d542213ee7079d29a3293511a1b38
 
     if (!reai_plugin_search_and_show_similar_functions (
             core,

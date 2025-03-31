@@ -373,10 +373,14 @@ Bool reai_plugin_init (RCore *core) {
 
     if (!reai_plugin_add_bg_work (perform_auth_check_in_bg, reai_plugin())) {
         REAI_LOG_ERROR ("Failed to add perform-auth-check bg worker.");
+    } else {
+        REAI_LOG_TRACE ("Performing auth check in background...");
     }
 
     if (!reai_plugin_add_bg_work (get_ai_models_in_bg, reai_plugin())) {
         REAI_LOG_ERROR ("Failed to add get-ai-models bg worker.");
+    } else {
+        REAI_LOG_TRACE ("Fetching available ai models in background...");
     }
 
     // get binary id
@@ -1248,7 +1252,7 @@ Bool reai_plugin_search_and_show_similar_functions (
     }
 
     // Max ANN distance from one node to another is computed as 1 - (minimum similarity level)
-    Float32            maxDistance = 1 - min_similarity;
+    Float32            maxDistance = 1 - min_similarity / 100.f;
     ReaiAnnFnMatchVec *fnMatches   = reai_batch_function_symbol_ann (
         reai(),
         reai_response(),
@@ -1424,13 +1428,13 @@ Bool reai_plugin_decompile_at (RCore *core, ut64 addr) {
 ReaiAiDecompilationStatus reai_plugin_check_decompiler_status_running_at (RCore *core, ut64 addr) {
     if (!core) {
         APPEND_ERROR ("Invalid arguments");
-        return false;
+        return REAI_AI_DECOMPILATION_STATUS_ERROR;
     }
 
     RAnalFunction *fn    = r_anal_get_function_at (core->anal, addr);
     ReaiFunctionId fn_id = reai_plugin_get_function_id_for_radare_function (core, fn);
     if (!fn_id) {
-        return false;
+        return REAI_AI_DECOMPILATION_STATUS_ERROR;
     }
 
     return reai_poll_ai_decompilation (reai(), reai_response(), fn_id);
