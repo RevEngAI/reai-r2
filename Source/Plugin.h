@@ -30,8 +30,8 @@ extern "C" {
 /* plugin */
 #include <Table.h>
 
-#define REAI_TO_RZ_ADDR(rea) ((rea) + reai_plugin_get_opened_binary_file_baseaddr (core))
-#define RZ_TO_REAI_ADDR(rza) ((rza) - reai_plugin_get_opened_binary_file_baseaddr (core))
+#define REAI_TO_R2_ADDR(rea) ((rea) + reai_plugin_get_opened_binary_file_baseaddr (core))
+#define R2_TO_REAI_ADDR(rza) ((rza) - reai_plugin_get_opened_binary_file_baseaddr (core))
 
     REAI_MAKE_VEC (ReaiBgWorkersVec, bg_workers, RThread *, NULL, NULL);
 

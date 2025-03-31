@@ -707,13 +707,7 @@ R_IPI RCmdStatus
     min_similarity    = (argc > 2) ? (Uint32)r_num_math (core->num, argv[2]) : min_similarity;
     max_results_count = (argc > 3) ? (Uint32)r_num_math (core->num, argv[3]) : max_results_count;
 
-<<<<<<< HEAD
-    Bool debug_filter =
-        r_cons_yesno ('y', "Restrict search suggestions to debug symbols only? [Y/n]");
-=======
-    Bool debug_mode = r_cons_yesno ('y', "Restrict suggestions to debug symbols? [Y/n]");
->>>>>>> 5fb3aeeb457d542213ee7079d29a3293511a1b38
-
+    Bool debug_filter = r_cons_yesno ('y', "Restrict suggestions to debug symbols? [Y/n]");
     if (!reai_plugin_search_and_show_similar_functions (
             core,
             function_name,

@@ -774,34 +774,12 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id) {
             "ssx",                                                                                 \
             old_name,                                                                              \
             r_fn->name,                                                                            \
-            REAI_TO_RZ_ADDR (fn->vaddr)                                                            \
+            REAI_TO_R2_ADDR (fn->vaddr)                                                            \
         );                                                                                         \
         success_cases_exist = true;                                                                \
     } while (0)
 
-    ReaiPluginTable *failed_renames = reai_plugin_table_create();
-    if (!failed_renames) {
-        APPEND_ERROR ("Failed to create table to display failed rename operations.");
-        reai_plugin_table_destroy (successful_renames);
-        reai_fn_info_vec_destroy (fn_infos);
-        return false;
-    }
-    reai_plugin_table_set_title (failed_renames, "Failed Function Rename Operations");
-    reai_plugin_table_set_columnsf (failed_renames, "ssn", "old_name", "reason", "address");
-#define ADD_TO_FAILED_RENAME(resn)                                                                 \
-    do {                                                                                           \
-        reai_plugin_table_add_rowf (                                                               \
-            failed_renames,                                                                        \
-            "ssx",                                                                                 \
-            old_name,                                                                              \
-            resn,                                                                                  \
-            REAI_TO_RZ_ADDR (fn->vaddr)                                                            \
-        );                                                                                         \
-        failed_cases_exist = true;                                                                 \
-    } while (0)
-
     Bool success_cases_exist = false;
-    Bool failed_cases_exist  = false;
 
     /* display information about what renames will be performed */ /* add rename information to new name mapping */
     /* rename the functions in radare */
@@ -813,7 +791,7 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id) {
         }
 
         /* get function */
-        RAnalFunction *r_fn = r_anal_get_function_at (core->anal, REAI_TO_RZ_ADDR (fn->vaddr));
+        RAnalFunction *r_fn = r_anal_get_function_at (core->anal, REAI_TO_R2_ADDR (fn->vaddr));
 
         if (r_fn) {
             old_name         = strdup (r_fn->name);
@@ -824,7 +802,7 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id) {
                 REAI_LOG_INFO (
                     "Name \"%s\" already matches for function at address %llx",
                     old_name,
-                    REAI_TO_RZ_ADDR (fn->vaddr)
+                    REAI_TO_R2_ADDR (fn->vaddr)
                 );
                 ADD_TO_SUCCESSFUL_RENAME();
             } else {
@@ -833,7 +811,11 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id) {
                 ADD_TO_SUCCESSFUL_RENAME();
             }
         } else { // If no radare funciton exists at given address
-            ADD_TO_FAILED_RENAME ("radare function not found at address");
+            REAI_LOG_ERROR (
+                "function not found (.name = \"%s\", .addr = 0x%llx)",
+                old_name,
+                REAI_TO_R2_ADDR (fn->vaddr)
+            );
         }
     });
 
@@ -845,13 +827,8 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id) {
         reai_plugin_table_show (successful_renames);
     }
 
-    if (failed_cases_exist) {
-        reai_plugin_table_show (failed_renames);
-    }
-
     // Mass Destruction!!!!
     reai_plugin_table_destroy (successful_renames);
-    reai_plugin_table_destroy (failed_renames);
     reai_fn_info_vec_destroy (fn_infos);
 
     reai_binary_id() = bin_id;
