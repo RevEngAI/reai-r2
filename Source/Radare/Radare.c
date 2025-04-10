@@ -7,6 +7,7 @@
 
 // radare
 #include <r_core.h>
+#include <r_util.h>
 
 // plugin
 #include <Radare/CmdHandlers.h>
@@ -106,20 +107,50 @@ int reai_r2_core_cmd (void *user, const char *input) {
         CString cmd;
         RCmdStatus (*handler) (RCore *core, int argc, const char **argv);
     } cmd_to_handler[] = {
-        {  "REi",          reai_plugin_initialize_handler},
-        {  "REm",   reai_list_available_ai_models_handler},
-        {  "REh",               reai_health_check_handler},
-        {  "REd",               reai_ai_decompile_handler},
+        {  "REi",                         reai_plugin_initialize_handler},
+        {  "REm",                  reai_list_available_ai_models_handler},
+        {  "REh",                              reai_health_check_handler},
+        {  "REd",                              reai_ai_decompile_handler},
 
-        {  "REa",            reai_create_analysis_handler},
-        { "REau",           reai_ann_auto_analyze_handler},
-        { "REap",    reai_apply_existing_analysis_handler},
+        { "REac",                   reai_create_analysis_private_handler},
+        {"REacp",                    reai_create_analysis_public_handler},
+        { "REau",                          reai_ann_auto_analyze_handler},
+        {"REaud",           reai_ann_auto_analyze_restrict_debug_handler},
+        { "REap",                   reai_apply_existing_analysis_handler},
+        {  "REa",                   reai_analysis_cmd_group_help_handler},
 
-        { "REfl",    reai_get_basic_function_info_handler},
-        { "REfr",            reai_rename_function_handler},
-        { "REfs", reai_function_similarity_search_handler},
+        { "REbl",                               reai_binary_link_handler},
+        {"REbsn",                     reai_binary_search_by_name_handler},
+        {"REbsh",                   reai_binary_search_by_sha256_handler},
+        { "REbs",                             reai_binary_search_handler},
+        {  "REb",                     reai_binary_cmd_group_help_handler},
 
-        {"REart",          reai_show_revengai_art_handler},
+        { "REcl",                           reai_collection_link_handler},
+        {"REcat",            reai_collection_basic_info_asc_time_handler},
+        {"REcao",           reai_collection_basic_info_asc_owner_handler},
+        {"REcan",            reai_collection_basic_info_asc_name_handler},
+        {"REcam",           reai_collection_basic_info_asc_model_handler},
+        {"REcas",            reai_collection_basic_info_asc_size_handler},
+        { "REca",  reai_collection_basic_info_asc_cmd_group_help_handler},
+        {"REcdt",           reai_collection_basic_info_desc_time_handler},
+        {"REcdo",          reai_collection_basic_info_desc_owner_handler},
+        {"REcdn",           reai_collection_basic_info_desc_name_handler},
+        {"REcdm",          reai_collection_basic_info_desc_model_handler},
+        {"REcds",           reai_collection_basic_info_desc_size_handler},
+        { "REcd", reai_collection_basic_info_desc_cmd_group_help_handler},
+        {"REcsc",      reai_collection_search_by_collection_name_handler},
+        {"REcsb",          reai_collection_search_by_binary_name_handler},
+        {"REcsh",        reai_collection_search_by_binary_sha256_handler},
+        { "REcs",                         reai_collection_search_handler},
+        {  "REc", reai_collection_basic_info_desc_cmd_group_help_handler},
+
+        { "REfl",                   reai_get_basic_function_info_handler},
+        { "REfr",                           reai_rename_function_handler},
+        { "REfs",                reai_function_similarity_search_handler},
+        {"REfsd", reai_function_similarity_search_restrict_debug_handler},
+        {  "REf",                   reai_function_cmd_group_help_handler},
+
+        {"REart",                         reai_show_revengai_art_handler},
     };
     size_t num_cmds = sizeof (cmd_to_handler) / sizeof (cmd_to_handler[0]);
 
@@ -130,7 +161,8 @@ int reai_r2_core_cmd (void *user, const char *input) {
 
         bool cmd_dispatched = false;
         for (size_t c = 0; c < num_cmds; c++) {
-            if (!strcmp (argv[0], cmd_to_handler[c].cmd)) {
+            const char *cmd = cmd_to_handler[c].cmd;
+            if (!r_str_startswith (argv[0], cmd)) {
                 cmd_to_handler[c].handler (core, argc, argv);
                 cmd_dispatched = true;
             }
@@ -213,7 +245,7 @@ RCorePlugin r_core_plugin_reai = {
                .desc    = "RevEngAI radare plugin",
                .license = "GPL3",
                .author  = "Siddharth Mishra",
-               .version = "v1+ai_decomp:feb5",
+               .version = "v1+search:apr10",
                },
     .call = reai_r2_core_cmd,
     .init = reai_r2_core_init,

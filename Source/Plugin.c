@@ -546,6 +546,42 @@ Bool reai_plugin_save_config (CString host, CString api_key) {
     return true;
 }
 
+CStrVec *csv_to_cstr_vec (CString csv) {
+    CStrVec *v = NULL;
+    if (csv && strlen (csv)) {
+        RList *list = r_str_split_duplist (csv, ",", true);
+        v           = reai_cstr_vec_create();
+
+        RListIter *it;
+        char      *cname;
+        r_list_foreach (list, it, cname) {
+            CString n = cname;
+            reai_cstr_vec_append (v, &n);
+        }
+        r_list_free (list);
+    }
+
+    return v;
+}
+
+U64Vec *csv_to_u64_vec (CString csv) {
+    U64Vec *v = NULL;
+    if (csv && strlen (csv)) {
+        RList *list = r_str_split_duplist (csv, ",", true);
+        v           = reai_u64_vec_create();
+
+        RListIter *it;
+        char      *cname;
+        r_list_foreach (list, it, cname) {
+            Uint64 n = strtoull (cname, NULL, 10);
+            reai_u64_vec_append (v, &n);
+        }
+        r_list_free (list);
+    }
+
+    return v;
+}
+
 /**
  * @b If a binary file is opened, then upload the binary file.
  *
@@ -1147,6 +1183,7 @@ ReaiFunctionId reai_plugin_get_function_id_for_radare_function (RCore *core, RAn
  * @return @c ReaiPluginTable containing search suggestions on success.
  * @return @c NULL when no suggestions found.
  * */
+// TODO: needs to be updated
 Bool reai_plugin_search_and_show_similar_functions (
     RCore  *core,
     CString fcn_name,
@@ -1450,4 +1487,259 @@ CString reai_plugin_get_decompiled_code_at (RCore *core, ut64 addr) {
     }
 
     return NULL;
+}
+
+Bool reai_plugin_collection_search (
+    RCore  *core,
+    CString partial_collection_name,
+    CString partial_binary_name,
+    CString partial_binary_sha256,
+    CString model_name,
+    CString tags_csv
+) {
+    if (!core) {
+        APPEND_ERROR ("Invalid arguments");
+        return false;
+    }
+
+    CStrVec *tags = csv_to_cstr_vec (tags_csv);
+
+    ReaiCollectionSearchResultVec *results = reai_collection_search (
+        reai(),
+        reai_response(),
+        partial_collection_name,
+        partial_binary_name,
+        partial_binary_sha256,
+        tags,
+        model_name
+    );
+
+    if (tags) {
+        reai_cstr_vec_destroy (tags);
+    }
+
+    if (results) {
+        results = reai_collection_search_result_vec_clone_create (results);
+    } else {
+        return false;
+    }
+
+    ReaiPluginTable *t = reai_plugin_table_create();
+    reai_plugin_table_set_title (t, "Collections Search Results");
+    reai_plugin_table_set_columnsf (
+        t,
+        "snssss",
+        "name",
+        "id",
+        "scope",
+        "last updated",
+        "model",
+        "owner"
+    );
+
+    REAI_VEC_FOREACH (results, csr, {
+        reai_plugin_table_add_rowf (
+            t,
+            "snssss",
+            csr->collection_name,
+            csr->collection_id,
+            csr->scope,
+            csr->last_updated_at,
+            csr->model_name,
+            csr->owned_by
+        );
+    });
+
+    reai_plugin_table_show (t);
+    reai_plugin_table_destroy (t);
+    reai_collection_search_result_vec_destroy (results);
+
+    return true;
+}
+
+Bool reai_plugin_collection_basic_info (
+    RCore                             *core,
+    CString                            search_term,
+    ReaiCollectionBasicInfoFilterFlags filter_flags,
+    ReaiCollectionBasicInfoOrderBy     order_by,
+    ReaiCollectionBasicInfoOrderIn     order_in
+) {
+    if (!core) {
+        APPEND_ERROR ("Invalid arguments");
+        return false;
+    }
+
+    if (!search_term) {
+        APPEND_ERROR ("A valid search term required for fetching collection infos.");
+        return false;
+    }
+
+    CString ordered_by_str = NULL;
+    switch (order_by) {
+        case REAI_COLLECTION_BASIC_INFO_ORDER_BY_COLLECTION :
+            ordered_by_str = "collection";
+            break;
+        case REAI_COLLECTION_BASIC_INFO_ORDER_BY_COLLECTION_SIZE :
+            ordered_by_str = "collection size";
+            break;
+        case REAI_COLLECTION_BASIC_INFO_ORDER_BY_MODEL :
+            ordered_by_str = "model";
+            break;
+        case REAI_COLLECTION_BASIC_INFO_ORDER_BY_OWNER :
+            ordered_by_str = "owner";
+            break;
+        case REAI_COLLECTION_BASIC_INFO_ORDER_BY_CREATED :
+            ordered_by_str = "creation time";
+            break;
+        default :
+            order_by       = REAI_COLLECTION_BASIC_INFO_ORDER_BY_COLLECTION;
+            ordered_by_str = "collection";
+            REAI_LOG_DEBUG (
+                "Invalid order_by enum was provided. Corrected to default value \"collection\""
+            );
+    }
+
+    CString ordered_in_str = NULL;
+    switch (order_in) {
+        case REAI_COLLECTION_BASIC_INFO_ORDER_IN_DESC :
+            ordered_in_str = "descending";
+            break;
+        case REAI_COLLECTION_BASIC_INFO_ORDER_IN_ASC :
+            ordered_in_str = "ascending";
+            break;
+        default :
+            order_in       = REAI_COLLECTION_BASIC_INFO_ORDER_IN_ASC;
+            ordered_in_str = "ascending";
+            REAI_LOG_DEBUG (
+                "Invalid order_in enum was provided. Corrected to default value \"ascending\""
+            );
+    }
+
+    ReaiCollectionBasicInfoVec *basic_info_vec = reai_get_basic_collection_info (
+        reai(),
+        reai_response(),
+        search_term,
+        filter_flags,
+        25,
+        0,
+        order_by,
+        order_in
+    );
+
+    if (basic_info_vec) {
+        basic_info_vec = reai_collection_basic_info_vec_clone_create (basic_info_vec);
+    } else {
+        return false;
+    }
+
+    char title[200] = {0};
+    snprintf (
+        title,
+        sizeof (title),
+        "Collections Basic Info, Ordered by %s in %s order",
+        ordered_by_str,
+        ordered_in_str
+    );
+
+    ReaiPluginTable *t = reai_plugin_table_create();
+    reai_plugin_table_set_title (t, title);
+    reai_plugin_table_set_columnsf (
+        t,
+        "snsnsss",
+        "name",
+        "id",
+        "scope",
+        "size",
+        "model",
+        "description",
+        "owner"
+    );
+
+    REAI_VEC_FOREACH (basic_info_vec, csr, {
+        reai_plugin_table_add_rowf (
+            t,
+            "snsnsss",
+            csr->collection_name,
+            csr->collection_id,
+            csr->collection_scope,
+            csr->collection_size,
+            csr->model_name,
+            csr->description,
+            csr->collection_owner
+        );
+    });
+
+    reai_plugin_table_show (t);
+    reai_plugin_table_destroy (t);
+    reai_collection_basic_info_vec_destroy (basic_info_vec);
+
+    return true;
+}
+
+Bool reai_plugin_binary_search (
+    RCore  *core,
+    CString partial_name,
+    CString partial_sha256,
+    CString model_name,
+    CString tags_csv
+) {
+    if (!core) {
+        APPEND_ERROR ("Invalid arguments");
+        return false;
+    }
+
+    CStrVec *tags = csv_to_cstr_vec (tags_csv);
+
+    ReaiBinarySearchResultVec *results = reai_binary_search (
+        reai(),
+        reai_response(),
+        partial_name,
+        partial_sha256,
+        tags,
+        model_name
+    );
+
+    if (tags) {
+        reai_cstr_vec_destroy (tags);
+    }
+
+    if (results) {
+        results = reai_binary_search_result_vec_clone_create (results);
+    } else {
+        return false;
+    }
+
+    ReaiPluginTable *t = reai_plugin_table_create();
+    reai_plugin_table_set_title (t, "Collections Search Results");
+    reai_plugin_table_set_columnsf (
+        t,
+        "snnssss",
+        "name",
+        "binary_id",
+        "analysis_id",
+        "model",
+        "owner",
+        "created_at",
+        "sha256"
+    );
+
+    REAI_VEC_FOREACH (results, bsr, {
+        reai_plugin_table_add_rowf (
+            t,
+            "snnssss",
+            bsr->binary_name,
+            bsr->binary_id,
+            bsr->analysis_id,
+            bsr->model_name,
+            bsr->owned_by,
+            bsr->created_at,
+            bsr->sha_256_hash
+        );
+    });
+
+    reai_plugin_table_show (t);
+    reai_plugin_table_destroy (t);
+    reai_binary_search_result_vec_destroy (results);
+
+    return true;
 }
