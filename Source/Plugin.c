@@ -91,7 +91,6 @@ RThreadFunctionRet perform_auth_check_in_bg (RThread *th) {
     return R_TH_STOP;
 }
 
-// TODO: remove this in next radare release
 const char *radare_analysis_function_force_rename (RAnalFunction *fcn, CString name) {
     r_return_val_if_fail (fcn && name, NULL);
 
@@ -871,7 +870,6 @@ Bool reai_plugin_apply_existing_analysis (RCore *core, ReaiBinaryId bin_id) {
     r_config_set_i (core->config, "reai.id", reai_binary_id());
 
 #undef ADD_TO_SUCCESSFUL_RENAME
-#undef ADD_TO_FAILED_RENAME
 
     return true;
 }
@@ -1094,7 +1092,6 @@ Bool reai_plugin_auto_analyze_opened_binary_file (
     reai_fn_info_vec_destroy (fn_infos);
 
 #undef ADD_TO_SUCCESSFUL_RENAME
-#undef ADD_TO_FAILED_RENAME
 
     return true;
 }
@@ -1183,16 +1180,17 @@ ReaiFunctionId reai_plugin_get_function_id_for_radare_function (RCore *core, RAn
  * @return @c ReaiPluginTable containing search suggestions on success.
  * @return @c NULL when no suggestions found.
  * */
-// TODO: needs to be updated
 Bool reai_plugin_search_and_show_similar_functions (
     RCore  *core,
     CString fcn_name,
     Size    max_results_count,
-    Uint32  min_similarity,
-    Bool    debug_filter
+    Int32   min_similarity,
+    Bool    debug_filter,
+    CString collection_ids_csv,
+    CString binary_ids_csv
 ) {
     if (!core) {
-        APPEND_ERROR ("Invalid radare core porivded. Cannot perform similarity search.");
+        APPEND_ERROR ("Invalid Rizin core porivded. Cannot perform similarity search.");
         return false;
     }
 
@@ -1265,48 +1263,52 @@ Bool reai_plugin_search_and_show_similar_functions (
         return false;
     }
 
-    // Max ANN distance from one node to another is computed as 1 - (minimum similarity level)
-    Float32            maxDistance = 1 - min_similarity / 100.f;
-    ReaiAnnFnMatchVec *fnMatches   = reai_batch_function_symbol_ann (
+    U64Vec *collection_ids = csv_to_u64_vec (collection_ids_csv);
+    U64Vec *binary_ids     = csv_to_u64_vec (binary_ids_csv);
+
+    Float32           maxDistance = 1.f - (min_similarity / 100.f);
+    ReaiSimilarFnVec *fnMatches   = reai_get_similar_functions (
         reai(),
         reai_response(),
         fn_id,
-        NULL, // speculative fn ids
         max_results_count,
         maxDistance,
-        NULL, // collections
-        debug_filter
+        collection_ids,
+        debug_filter,
+        binary_ids
     );
 
-    if (fnMatches->count) {
+    if (collection_ids) {
+        reai_u64_vec_destroy (collection_ids);
+    }
+
+    if (binary_ids) {
+        reai_u64_vec_destroy (binary_ids);
+    }
+
+    if (fnMatches && fnMatches->count) {
         // Populate table
         ReaiPluginTable *table = reai_plugin_table_create();
         reai_plugin_table_set_columnsf (
             table,
-            "sfns",
+            "snsnn",
             "Function Name",
-            "Similarity",
             "Function ID",
-            "Binary Name"
+            "Binary Name",
+            "Binary ID",
+            "Similarity"
         );
         reai_plugin_table_set_title (table, "Function Similarity Search Results");
 
         REAI_VEC_FOREACH (fnMatches, fnMatch, {
             reai_plugin_table_add_rowf (
                 table,
-                "sfns",
-                fnMatch->nn_function_name,
-                fnMatch->confidence, // is actually similarity, but named confidence in API
-                fnMatch->nn_function_id,
-                fnMatch->nn_binary_name
-            );
-            REAI_LOG_TRACE (
-                "Similarity Search Suggestion = (.name = \"%s\", .similarity = \"%lf\", "
-                ".function_id = \"%llu\", .binary_name = \"%s\")",
-                fnMatch->nn_function_name,
-                fnMatch->confidence, // is actually similarity, but named confidence in API
-                fnMatch->nn_function_id,
-                fnMatch->nn_binary_name
+                "snsnf",
+                fnMatch->function_name,
+                fnMatch->function_id,
+                fnMatch->binary_name,
+                fnMatch->binary_id,
+                (1 - fnMatch->distance) * 100
             );
         });
 

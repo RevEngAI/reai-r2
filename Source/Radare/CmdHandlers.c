@@ -595,7 +595,7 @@ R_IPI RCmdStatus reai_binary_search_handler (RCore* core, int argc, const char**
 R_IPI RCmdStatus reai_binary_cmd_group_help_handler (RCore* core, int argc, const char** argv) {
     UNUSED (core && argc && argv);
 
-    if (!r_str_startswith (argv[0], "REa?")) {
+    if (!r_str_startswith (argv[0], "REb?")) {
         DISPLAY_ERROR (
             "ERROR: Command '%s' does not exist.\n"
             "ERROR: Displaying the help of command 'REb'.\n\n",
@@ -613,7 +613,7 @@ R_IPI RCmdStatus reai_binary_cmd_group_help_handler (RCore* core, int argc, cons
 }
 
 /**
- * "REb"
+ * "REf"
  * */
 R_IPI RCmdStatus reai_function_cmd_group_help_handler (RCore* core, int argc, const char** argv) {
     UNUSED (core && argc && argv);
@@ -1010,7 +1010,21 @@ R_IPI RCmdStatus
     reai_function_similarity_search_handler (RCore* core, int argc, const char** argv) {
     REAI_LOG_TRACE ("[CMD] Function similarity search");
     if (argc < 2 || r_str_startswith (argv[0], "REfs?")) {
-        DISPLAY_ERROR ("USAGE : REfs <function_name> <min_similarity>=95 <max_results>=20");
+        DISPLAY_ERROR (
+            "Usage: REfs <function_name> <min_similarity>=95 <max_results>=20 <collection_ids>= "
+            "<binary_ids>=   # RevEng.AI ANN functions similarity search.\n"
+            "\n"
+            "Function Name:\n"
+            "| REfs sym.main                     # Search similar function for sym.main function "
+            "with minimum similarity of 90%%\n"
+            "| REfs __memcmp 95                  # Search similar function for __memcmp, with "
+            "minimum 95%% similarity\n"
+            "| REfs postHandleCall 72 10         # Max 10 results\n"
+            "| REfs fcn.8086.xmrig-0ddf8e62 80 10 \"194728, 170418, 161885\" # Search only in "
+            "provided list of comma separated collection IDs\n"
+            "| REfs FUN_8a3004 90 25 \"\" \"420229, 38445\" # Can provide binary IDs as well to "
+            "limit the search for functions to those binaries\n"
+        );
         return R_CMD_STATUS_ERROR;
     }
 
@@ -1020,19 +1034,23 @@ R_IPI RCmdStatus
     }
 
     // Parse command line arguments
-    CString function_name     = argv[1];
-    Uint32  min_similarity    = 95;
-    Uint32  max_results_count = 20;
+    CString function_name      = argv[1];
+    Uint32  min_similarity     = (Uint32)r_num_math (core->num, argv[2]);
+    Uint32  max_results_count  = (Uint32)r_num_math (core->num, argv[3]);
+    CString collection_ids_csv = argv[4];
+    CString binary_ids_csv     = argv[5];
 
-    min_similarity    = (argc > 2) ? (Uint32)r_num_math (core->num, argv[2]) : min_similarity;
-    max_results_count = (argc > 3) ? (Uint32)r_num_math (core->num, argv[3]) : max_results_count;
+    // clamp value between 0 and 100
+    min_similarity = min_similarity < 100 ? min_similarity : 100;
 
     if (!reai_plugin_search_and_show_similar_functions (
             core,
             function_name,
             max_results_count,
             min_similarity,
-            false // no restrictions on search suggestions
+            false, // Don't restrict suggestions to debug symbols only.
+            collection_ids_csv,
+            binary_ids_csv
         )) {
         DISPLAY_ERROR ("Failed to get similar functions search result.");
         return R_CMD_STATUS_ERROR;
@@ -1078,23 +1096,23 @@ R_IPI RCmdStatus reai_function_similarity_search_restrict_debug_handler (
     }
 
     // Parse command line arguments
-    CString function_name     = argv[1];
-    Uint32  min_similarity    = 95;
-    Uint32  max_results_count = 20;
+    CString function_name      = argv[1];
+    Uint32  min_similarity     = (Uint32)r_num_math (core->num, argv[2]);
+    Uint32  max_results_count  = (Uint32)r_num_math (core->num, argv[3]);
+    CString collection_ids_csv = argv[4];
+    CString binary_ids_csv     = argv[5];
 
-    min_similarity    = (argc > 2) ? (Uint32)r_num_math (core->num, argv[2]) : min_similarity;
-    max_results_count = (argc > 3) ? (Uint32)r_num_math (core->num, argv[3]) : max_results_count;
+    // clamp value between 0 and 100
+    min_similarity = min_similarity < 100 ? min_similarity : 100;
 
-    CString collection_ids_csv = (argc > 4) ? argv[4] : NULL;
-    CString binary_ids_csv     = (argc > 5) ? argv[5] : NULL;
-
-    // TODO: needs to be updated
     if (!reai_plugin_search_and_show_similar_functions (
             core,
             function_name,
             max_results_count,
             min_similarity,
-            true // restrict search suggestions to debug symbols only
+            true, // Restrict suggestions to debug symbols only.
+            collection_ids_csv,
+            binary_ids_csv
         )) {
         DISPLAY_ERROR ("Failed to get similar functions search result.");
         return R_CMD_STATUS_ERROR;
@@ -1117,13 +1135,13 @@ R_IPI RCmdStatus reai_collection_cmd_group_help_handler (RCore* core, int argc, 
     }
 
     DISPLAY_INFO (
-        "Usage: REc<lads>   # RevEngAI commands for interacting with collections"
+        "Usage: REc<lads>   # RevEngAI commands for interacting with collections\n"
         "| REcl <collection_id> # Provide a RevEngAI link to view more information about "
-        "collection in browser."
-        "| REca<tonms>          # Get information about collections, ordered in ascending order."
-        "| REcd<tonms>          # Get information about collections, ordered in descending order."
+        "collection in browser.\n"
+        "| REca<tonms>          # Get information about collections, ordered in ascending order.\n"
+        "| REcd<tonms>          # Get information about collections, ordered in descending order.\n"
         "| REcs[cbh]            # Perform a collection search through either partial collection "
-        "name, binary name or sha256 hash of binary."
+        "name, binary name or sha256 hash of binary.\n"
     );
 
     return R_CMD_STATUS_OK;

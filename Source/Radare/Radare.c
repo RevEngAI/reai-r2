@@ -100,59 +100,82 @@ int reai_r2_core_fini (void *user, const char *cmd) {
     return true;
 }
 
+typedef struct ReaiCmdHandlerInfo {
+    char cmd[8];
+    RCmdStatus (*handler) (RCore *core, int argc, const char **argv);
+    size_t cmdlen;
+} ReaiCmdHandlerInfo;
+
+static size_t             num_cmds           = 0;
+static ReaiCmdHandlerInfo cmd_to_handler[64] = {0};
+
+void reai_init_cmd_handler_infos() {
+    ReaiCmdHandlerInfo handlers[] = {
+        {  "REi",                         reai_plugin_initialize_handler, 0},
+        {  "REm",                  reai_list_available_ai_models_handler, 0},
+        {  "REh",                              reai_health_check_handler, 0},
+        {  "REd",                              reai_ai_decompile_handler, 0},
+
+        { "REac",                   reai_create_analysis_private_handler, 0},
+        {"REacp",                    reai_create_analysis_public_handler, 0},
+        { "REau",                          reai_ann_auto_analyze_handler, 0},
+        {"REaud",           reai_ann_auto_analyze_restrict_debug_handler, 0},
+        { "REap",                   reai_apply_existing_analysis_handler, 0},
+        {  "REa",                   reai_analysis_cmd_group_help_handler, 0},
+
+        { "REbl",                               reai_binary_link_handler, 0},
+        {"REbsn",                     reai_binary_search_by_name_handler, 0},
+        {"REbsh",                   reai_binary_search_by_sha256_handler, 0},
+        { "REbs",                             reai_binary_search_handler, 0},
+        {  "REb",                     reai_binary_cmd_group_help_handler, 0},
+
+        { "REcl",                           reai_collection_link_handler, 0},
+        {"REcat",            reai_collection_basic_info_asc_time_handler, 0},
+        {"REcao",           reai_collection_basic_info_asc_owner_handler, 0},
+        {"REcan",            reai_collection_basic_info_asc_name_handler, 0},
+        {"REcam",           reai_collection_basic_info_asc_model_handler, 0},
+        {"REcas",            reai_collection_basic_info_asc_size_handler, 0},
+        { "REca",  reai_collection_basic_info_asc_cmd_group_help_handler, 0},
+        {"REcdt",           reai_collection_basic_info_desc_time_handler, 0},
+        {"REcdo",          reai_collection_basic_info_desc_owner_handler, 0},
+        {"REcdn",           reai_collection_basic_info_desc_name_handler, 0},
+        {"REcdm",          reai_collection_basic_info_desc_model_handler, 0},
+        {"REcds",           reai_collection_basic_info_desc_size_handler, 0},
+        { "REcd", reai_collection_basic_info_desc_cmd_group_help_handler, 0},
+        {"REcsc",      reai_collection_search_by_collection_name_handler, 0},
+        {"REcsb",          reai_collection_search_by_binary_name_handler, 0},
+        {"REcsh",        reai_collection_search_by_binary_sha256_handler, 0},
+        { "REcs",                         reai_collection_search_handler, 0},
+        {  "REc",                 reai_collection_cmd_group_help_handler, 0},
+
+        { "REfl",                   reai_get_basic_function_info_handler, 0},
+        { "REfr",                           reai_rename_function_handler, 0},
+        { "REfs",                reai_function_similarity_search_handler, 0},
+        {"REfsd", reai_function_similarity_search_restrict_debug_handler, 0},
+        {  "REf",                   reai_function_cmd_group_help_handler, 0},
+
+        {"REart",                         reai_show_revengai_art_handler, 0},
+    };
+    num_cmds = sizeof (handlers) / sizeof (handlers[0]);
+
+    for (size_t x = 0; x < num_cmds; x++) {
+        ReaiCmdHandlerInfo *ho = &cmd_to_handler[x];
+        ReaiCmdHandlerInfo *it = &handlers[x];
+
+        memset (ho->cmd, 0, sizeof (ho->cmd));
+
+        ho->cmdlen  = strlen (it->cmd);
+        ho->handler = it->handler;
+        memcpy (ho->cmd, it->cmd, ho->cmdlen);
+    }
+}
+
 int reai_r2_core_cmd (void *user, const char *input) {
     RCore *core = (RCore *)user;
 
-    struct {
-        CString cmd;
-        RCmdStatus (*handler) (RCore *core, int argc, const char **argv);
-    } cmd_to_handler[] = {
-        {  "REi",                         reai_plugin_initialize_handler},
-        {  "REm",                  reai_list_available_ai_models_handler},
-        {  "REh",                              reai_health_check_handler},
-        {  "REd",                              reai_ai_decompile_handler},
-
-        { "REac",                   reai_create_analysis_private_handler},
-        {"REacp",                    reai_create_analysis_public_handler},
-        { "REau",                          reai_ann_auto_analyze_handler},
-        {"REaud",           reai_ann_auto_analyze_restrict_debug_handler},
-        { "REap",                   reai_apply_existing_analysis_handler},
-        {  "REa",                   reai_analysis_cmd_group_help_handler},
-
-        { "REbl",                               reai_binary_link_handler},
-        {"REbsn",                     reai_binary_search_by_name_handler},
-        {"REbsh",                   reai_binary_search_by_sha256_handler},
-        { "REbs",                             reai_binary_search_handler},
-        {  "REb",                     reai_binary_cmd_group_help_handler},
-
-        { "REcl",                           reai_collection_link_handler},
-        {"REcat",            reai_collection_basic_info_asc_time_handler},
-        {"REcao",           reai_collection_basic_info_asc_owner_handler},
-        {"REcan",            reai_collection_basic_info_asc_name_handler},
-        {"REcam",           reai_collection_basic_info_asc_model_handler},
-        {"REcas",            reai_collection_basic_info_asc_size_handler},
-        { "REca",  reai_collection_basic_info_asc_cmd_group_help_handler},
-        {"REcdt",           reai_collection_basic_info_desc_time_handler},
-        {"REcdo",          reai_collection_basic_info_desc_owner_handler},
-        {"REcdn",           reai_collection_basic_info_desc_name_handler},
-        {"REcdm",          reai_collection_basic_info_desc_model_handler},
-        {"REcds",           reai_collection_basic_info_desc_size_handler},
-        { "REcd", reai_collection_basic_info_desc_cmd_group_help_handler},
-        {"REcsc",      reai_collection_search_by_collection_name_handler},
-        {"REcsb",          reai_collection_search_by_binary_name_handler},
-        {"REcsh",        reai_collection_search_by_binary_sha256_handler},
-        { "REcs",                         reai_collection_search_handler},
-        {  "REc", reai_collection_basic_info_desc_cmd_group_help_handler},
-
-        { "REfl",                   reai_get_basic_function_info_handler},
-        { "REfr",                           reai_rename_function_handler},
-        { "REfs",                reai_function_similarity_search_handler},
-        {"REfsd", reai_function_similarity_search_restrict_debug_handler},
-        {  "REf",                   reai_function_cmd_group_help_handler},
-
-        {"REart",                         reai_show_revengai_art_handler},
-    };
-    size_t num_cmds = sizeof (cmd_to_handler) / sizeof (cmd_to_handler[0]);
+    if (!num_cmds) {
+        reai_init_cmd_handler_infos();
+    }
 
     if (r_str_startswith (input, "RE")) {
         int          argc = 0;
@@ -160,12 +183,25 @@ int reai_r2_core_cmd (void *user, const char *input) {
         split_args (input, &argc, (char ***)&argv);
 
         bool cmd_dispatched = false;
-        for (size_t c = 0; c < num_cmds; c++) {
-            const char *cmd = cmd_to_handler[c].cmd;
-            if (!r_str_startswith (argv[0], cmd)) {
+        for (int c = num_cmds - 1; c >= 0; c--) {
+            // handler info
+            ReaiCmdHandlerInfo *hi = &cmd_to_handler[c];
+
+            // exact command match
+            char *cmd = hi->cmd;
+            if (!strcmp (argv[0], cmd)) {
                 cmd_to_handler[c].handler (core, argc, argv);
                 cmd_dispatched = true;
             }
+
+            // command help match
+            cmd[hi->cmdlen] = '?';
+            if (!strcmp (argv[0], cmd)) {
+                cmd_to_handler[c].handler (core, argc, argv);
+                cmd_dispatched = true;
+            }
+
+            cmd[hi->cmdlen] = 0;
         }
 
         if (!cmd_dispatched) {

@@ -79,9 +79,11 @@ extern "C" {
     Bool           reai_plugin_search_and_show_similar_functions (
                   RCore  *core,
                   CString fcn_name,
-                  Size    max_results,
-                  Uint32  confidence,
-                  Bool    debug_mode
+                  Size    max_results_count,
+                  Int32   min_similarity,
+                  Bool    debug_filter,
+                  CString collection_ids_csv,
+                  CString binary_ids_csv
               );
 
     RBin   *reai_plugin_get_opened_binary_file (RCore *core);

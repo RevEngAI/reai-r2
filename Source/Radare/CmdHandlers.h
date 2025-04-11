@@ -101,11 +101,7 @@ R_IPI RCmdStatus
 // "REcs"
 R_IPI RCmdStatus reai_collection_search_handler (RCore* core, int argc, const char** argv);
 // "REc"
-R_IPI RCmdStatus reai_collection_basic_info_desc_cmd_group_help_handler (
-    RCore*       core,
-    int          argc,
-    const char** argv
-);
+R_IPI RCmdStatus reai_collection_cmd_group_help_handler (RCore* core, int argc, const char** argv);
 // "REd"
 R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** argv);
 // "REfl"
