@@ -189,9 +189,13 @@ R_IPI RCmdStatus reai_create_analysis_private_handler (RCore* core, int argc, co
         r_core_cmd_call (core, "aaaaa");
     }
 
-    CString ai_model     = argv[1];
-    CString prog_name    = argv[2];
-    CString cmdline_args = argv[3];
+    CString ai_model  = argv[1];
+    CString prog_name = argv[2];
+
+    CString cmdline_args = NULL;
+    if (argc == 4) {
+        cmdline_args = argv[3];
+    }
 
     // prog name and ai model must not be null atleast
     if (!prog_name || !strlen (prog_name) || !ai_model || !strlen (ai_model)) {
@@ -252,9 +256,13 @@ R_IPI RCmdStatus reai_create_analysis_public_handler (RCore* core, int argc, con
         r_core_cmd_call (core, "aaaaa");
     }
 
-    CString prog_name    = argv[1];
-    CString cmdline_args = argv[2];
-    CString ai_model     = argv[3];
+    CString ai_model  = argv[1];
+    CString prog_name = argv[2];
+
+    CString cmdline_args = NULL;
+    if (argc == 4) {
+        cmdline_args = argv[3];
+    }
 
     // prog name and ai model must not be null atleast
     if (!prog_name || !ai_model) {
