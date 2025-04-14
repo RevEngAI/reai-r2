@@ -10,10 +10,18 @@ Don't want to go through all the manual hassle? We have a dockerfile as well.
 Just do :
 
 ```bash
-git clone https://github.com/revengai/reai-r2 && 
-cd reai-r2 && docker build --build-arg apikey=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx -t reai-r2 . &&
+git clone --recurse-submodules https://github.com/revengai/reai-r2 &&
+cd reai-r2 && docker build --build-arg REVENG_APIKEY=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx -t reai-r2 . &&
 docker run -v /tmp/userdata:/home/revengai/userdata -it reai-r2
 ```
+
+Any subsequent runs will automatically enter into Radare2 shell with the following command :
+
+```bash
+docker run -v /tmp/userdata:/home/revengai/userdata -it reai-r2
+```
+
+Users can open binaries into radare2 using the `o` command group.
 
 This will get you a working installation of the radare plugin in a single command!
 

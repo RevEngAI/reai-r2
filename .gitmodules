@@ -1,0 +1,3 @@
+[submodule "creait"]
+	path = creait
+	url = https://github.com/RevEngAI/creait.git
