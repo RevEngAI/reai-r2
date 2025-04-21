@@ -370,7 +370,7 @@ R_IPI RCmdStatus reai_get_recent_analyses_handler (RCore* core, int argc, const 
         "status",
         "creation",
         "binary_name",
-        "dyn_exec_status"
+        "scope"
     );
 
     REAI_VEC_FOREACH (results, r, {
@@ -379,10 +379,10 @@ R_IPI RCmdStatus reai_get_recent_analyses_handler (RCore* core, int argc, const 
             "nnssss",
             r->analysis_id,
             r->binary_id,
-            r->status,
+            reai_analysis_status_to_cstr (r->status),
             r->creation,
             r->binary_name,
-            r->dynamic_execution_status
+            r->is_public ? "PUBLIC" : "PRIVATE"
         );
     });
 
