@@ -1750,3 +1750,36 @@ Bool reai_plugin_binary_search (
 
     return true;
 }
+
+Bool reai_plugin_get_analysis_logs (RCore *core, Uint64 id, Bool is_analysis_id) {
+    UNUSED (core);
+
+    ReaiAnalysisId analysis_id = id;
+    if (!is_analysis_id) {
+        if (!id) {
+            APPEND_ERROR ("Invalid binary ID provided. Cannot fetch logs.");
+            return false;
+        }
+        analysis_id = reai_analysis_id_from_binary_id (reai(), reai_response(), id);
+
+        if (!analysis_id) {
+            APPEND_ERROR ("Failed to convert given binary ID to analysis ID");
+            return false;
+        }
+    } else {
+        if (!id) {
+            APPEND_ERROR ("Invalid analysis ID provided. Cannot fetch logs.");
+            return false;
+        }
+    }
+
+    CString logs = reai_get_analysis_logs (reai(), reai_response(), analysis_id);
+    if (logs) {
+        DISPLAY_INFO ("%s", logs);
+    } else {
+        APPEND_ERROR ("Failed to fetch analysis logs.");
+        return false;
+    }
+
+    return true;
+}

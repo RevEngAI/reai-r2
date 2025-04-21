@@ -49,15 +49,14 @@ R_IPI RCmdStatus reai_show_help_handler (RCore* core, int argc, const char** arg
     }
 
     r_cons_println (
-        "Usage: RE<?>   # RevEngAI Plugin Commands\n"
         "| REi <api_key>=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX # Initialize plugin config.\n"
         "| REm                     # Get all available models for analysis.\n"
         "| REh                     # Check connection status with RevEngAI servers.\n"
-        "| REa<cup?>               # RevEngAI commands for interacting with analyses\n"
+        "| REa[prolue?]            # RevEngAI commands for interacting with analyses\n"
         "| REd <function_name>     # Decompile given function using RevEngAI's AI Decompiler\n"
-        "| REb<ls>                 # RevEngAI commands for interacting with binaries\n"
-        "| REc<lads>               # RevEngAI commands for interacting with collections\n"
-        "| REf<lrs?>               # RevEngAI commands for interacting with functions\n"
+        "| REb<s>                  # RevEngAI commands for interacting with binaries\n"
+        "| REc<oads>               # RevEngAI commands for interacting with collections\n"
+        "| REf<olrs?>              # RevEngAI commands for interacting with functions\n"
         "| REart                   # Show RevEng.AI ASCII art.\n"
     );
 
@@ -163,22 +162,23 @@ R_IPI RCmdStatus reai_health_check_handler (RCore* core, int argc, const char** 
 }
 
 /**
- * "REac"
+ * "REap"
  *
  * NOTE: The default way to get ai model would be to use "REm" command.
  *       Get list of all available AI models and then use one to create a new analysis.
  * */
 R_IPI RCmdStatus reai_create_analysis_private_handler (RCore* core, int argc, const char** argv) {
     REAI_LOG_TRACE ("[CMD] create analysis (private)");
-    if (argc < 3 || argc > 4 || r_str_startswith (argv[0], "REac?")) {
+    if (argc < 3 || argc > 4 || r_str_startswith (argv[0], "REap?")) {
         DISPLAY_ERROR (
-            "USAGE : REac <ai_model> <prog_name> <cmd_line_args>         # Create private"
-            "RevEngAI analysis\n\n"
+            "Usage: REap <ai_model> <prog_name> [<cmd_line_args>]   # Create a PRIVATE RevEngAI "
+            "analysis for currently opened binary\n"
+            "\n"
             "Examples:\n"
-            "| REac binnet-0.4-x86-linux ffmpeg \"-i input.mp4 -vf -c:v gif output.gif\"           "
-            "# With command line arguments\n"
-            "| REac binnet-0.5-x86-linux emacs                                                     "
-            "# Without command line arguments\n"
+            "| REap binnet-0.5-x86-linux ffmpeg \"-i input.mp4 -c:v gif output.gif\" # Create "
+            "analysis for ffmpeg program with given command line arguments.\n"
+            "| REap binnet-0.5-x86-linux NFSMostWantedTrainer.exe                  # Without any "
+            "command line arguments.\n"
         );
         return R_CMD_STATUS_ERROR;
     }
@@ -200,15 +200,14 @@ R_IPI RCmdStatus reai_create_analysis_private_handler (RCore* core, int argc, co
     // prog name and ai model must not be null atleast
     if (!prog_name || !strlen (prog_name) || !ai_model || !strlen (ai_model)) {
         DISPLAY_ERROR (
-            "Invalid program name or AI model name provided\n"
-            "Use REm to get a list of available AI models\n\n"
-            "USAGE : REac <ai_model> <prog_name> <cmd_line_args>         # Create private"
-            "RevEngAI analysis\n\n"
+            "Usage: REap <ai_model> <prog_name> [<cmd_line_args>]   # Create a PRIVATE RevEngAI "
+            "analysis for currently opened binary\n"
+            "\n"
             "Examples:\n"
-            "| REac binnet-0.4-x86-linux ffmpeg \"-i input.mp4 -vf -c:v gif output.gif\"           "
-            "# With command line arguments\n"
-            "| REac binnet-0.5-x86-linux emacs                                                     "
-            "# Without command line arguments\n"
+            "| REap binnet-0.5-x86-linux ffmpeg \"-i input.mp4 -c:v gif output.gif\" # Create "
+            "analysis for ffmpeg program with given command line arguments.\n"
+            "| REap binnet-0.5-x86-linux NFSMostWantedTrainer.exe                  # Without any "
+            "command line arguments.\n"
         );
         return R_CMD_STATUS_ERROR;
     }
@@ -230,26 +229,32 @@ R_IPI RCmdStatus reai_create_analysis_private_handler (RCore* core, int argc, co
 }
 
 /**
- * "REacp"
+ * "REa"
  *
  * NOTE: The default way to get ai model would be to use "REm" command.
  *       Get list of all available AI models and then use one to create a new analysis.
  * */
 R_IPI RCmdStatus reai_create_analysis_public_handler (RCore* core, int argc, const char** argv) {
     REAI_LOG_TRACE ("[CMD] create analysis (public)");
-    if (argc < 3 || argc > 4 || r_str_startswith (argv[0], "REacp?")) {
+    if (argc < 3 || argc > 4 || r_str_startswith (argv[0], "REa??")) {
         DISPLAY_ERROR (
-            "USAGE : REac <ai_model> <prog_name> <cmd_line_args>         # Create public"
-            "RevEngAI analysis\n\n"
+            "Usage: REa <ai_model> <prog_name> [<cmd_line_args>]   # Create a PUBLIC RevEngAI "
+            "analysis for currently opened binary\n"
+            "\n"
             "Examples:\n"
-            "| REac binnet-0.4-x86-linux ffmpeg \"-i input.mp4 -vf -c:v gif output.gif\"           "
-            "# With command line arguments\n"
-            "| REac binnet-0.5-x86-linux emacs                                                     "
-            "# Without command line arguments\n"
+            "| REa binnet-0.5-x86-linux ffmpeg \"-i input.mp4 -c:v gif output.gif\" # Create "
+            "analysis for ffmpeg program with given command line arguments.\n"
+            "| REa binnet-0.5-x86-linux NFSMostWantedTrainer.exe                  # Without any "
+            "command line arguments.\n"
+            "\n"
+            "Detailed help for the command group \"REa\" is provided by REa??.\n"
         );
-        return R_CMD_STATUS_ERROR;
+
+        return R_CMD_STATUS_WRONG_ARGS;
     }
-    REAI_LOG_TRACE ("[CMD] create analysis");
+    if (r_str_startswith (argv[0], "REa?")) {
+        reai_analysis_cmd_group_help_handler (NULL, 0, NULL);
+    }
 
     /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
@@ -267,15 +272,16 @@ R_IPI RCmdStatus reai_create_analysis_public_handler (RCore* core, int argc, con
     // prog name and ai model must not be null atleast
     if (!prog_name || !ai_model) {
         DISPLAY_ERROR (
-            "Invalid program name or AI model name provided\n"
-            "Use REm to get a list of available AI models\n\n"
-            "USAGE : REac <ai_model> <prog_name> <cmd_line_args>         # Create public"
-            "RevEngAI analysis\n\n"
+            "Usage: REa <ai_model> <prog_name> [<cmd_line_args>]   # Create a PUBLIC RevEngAI "
+            "analysis for currently opened binary\n"
+            "\n"
             "Examples:\n"
-            "| REac binnet-0.4-x86-linux ffmpeg \"-i input.mp4 -vf -c:v gif output.gif\"           "
-            "# With command line arguments\n"
-            "| REac binnet-0.5-x86-linux emacs                                                     "
-            "# Without command line arguments\n"
+            "| REa binnet-0.5-x86-linux ffmpeg \"-i input.mp4 -c:v gif output.gif\" # Create "
+            "analysis for ffmpeg program with given command line arguments.\n"
+            "| REa binnet-0.5-x86-linux NFSMostWantedTrainer.exe                  # Without any "
+            "command line arguments.\n"
+            "\n"
+            "Detailed help for the command group \"REa\" is provided by REa??.\n"
         );
         return R_CMD_STATUS_ERROR;
     }
@@ -297,12 +303,12 @@ R_IPI RCmdStatus reai_create_analysis_public_handler (RCore* core, int argc, con
 }
 
 /**
- * "REap"
+ * "REae"
  * */
 R_IPI RCmdStatus reai_apply_existing_analysis_handler (RCore* core, int argc, const char** argv) {
     REAI_LOG_TRACE ("[CMD] apply existing analysis");
-    if (argc != 2 || r_str_startswith (argv[0], "REap?")) {
-        DISPLAY_ERROR ("USAGE : REap <bin_id>");
+    if (argc != 2 || r_str_startswith (argv[0], "REae?")) {
+        DISPLAY_ERROR ("USAGE : REae <bin_id>");
         return R_CMD_STATUS_ERROR;
     }
 
@@ -321,6 +327,151 @@ R_IPI RCmdStatus reai_apply_existing_analysis_handler (RCore* core, int argc, co
 
     DISPLAY_INFO ("Failed to apply existing analysis");
     return R_CMD_STATUS_ERROR;
+}
+
+
+/**
+ * "REar"
+ * */
+R_IPI RCmdStatus reai_get_recent_analyses_handler (RCore* core, int argc, const char** argv) {
+    UNUSED (core && argc && argv);
+    REAI_LOG_TRACE ("[CMD] get recen analyses");
+    if (r_str_startswith (argv[0], "REar?")) {
+        DISPLAY_ERROR ("Usage: REar   # Get most recent analyses");
+        return R_CMD_STATUS_ERROR;
+    }
+
+    ReaiAnalysisInfoVec* results = reai_get_recent_analyses (
+        reai(),
+        reai_response(),
+        NULL /* search term */,
+        REAI_WORKSPACE_PUBLIC,
+        REAI_ANALYSIS_STATUS_ALL,
+        NULL, /* model name */
+        REAI_DYN_EXEC_STATUS_ALL,
+        NULL, /* usernames */
+        25,   /* 25 most recent analyses */
+        0,
+        REAI_RECENT_ANALYSIS_ORDER_BY_CREATED,
+        false
+    );
+    if (!results) {
+        DISPLAY_ERROR ("Failed to get most recent analysis. Are you a new user?");
+        return R_CMD_STATUS_ERROR;
+    }
+
+    ReaiPluginTable* t = reai_plugin_table_create();
+    reai_plugin_table_set_title (t, "Most Recent Analyses");
+    reai_plugin_table_set_columnsf (
+        t,
+        "nnssss",
+        "analysis_id",
+        "binary_id",
+        "status",
+        "creation",
+        "binary_name",
+        "dyn_exec_status"
+    );
+
+    REAI_VEC_FOREACH (results, r, {
+        reai_plugin_table_add_rowf (
+            t,
+            "nnssss",
+            r->analysis_id,
+            r->binary_id,
+            r->status,
+            r->creation,
+            r->binary_name,
+            r->dynamic_execution_status
+        );
+    });
+
+    reai_plugin_table_show (t);
+    reai_plugin_table_destroy (t);
+
+    return R_CMD_STATUS_OK;
+}
+
+/**
+ * REal
+ * */
+R_IPI RCmdStatus
+    reai_get_analysis_logs_using_analysis_id_handler (RCore* core, int argc, const char** argv) {
+    REAI_LOG_TRACE ("[CMD] Get Analysis Logs");
+
+    // Command group help
+    if (argc > 2 || r_str_startswith (argv[0], "REal?")) {
+        DISPLAY_ERROR (
+            "Usage: REal[b]   # Get RevEngAI analysis logs\n"
+            "| REal <analysis_id> # Get RevEngAI analysis logs using analysis id\n"
+            "| REalb <binary_id>  # Get RevEngAI analysis logs using binary id\n"
+        );
+        return R_CMD_STATUS_ERROR;
+    }
+
+    ReaiAnalysisId id             = 0;
+    Bool           is_analysis_id = true;
+    if (argc == 2) {
+        id = r_num_get (core->num, argv[1]);
+    } else {
+        id = reai_binary_id();
+
+        if (!id) {
+            DISPLAY_ERROR (
+                "You haven't provided any analysis id.\n"
+                "Did you forget to apply an existing analysis or to create a new one?\n"
+                "Cannot fetch analysis logs\n"
+            );
+            return R_CMD_STATUS_WRONG_ARGS;
+        }
+
+        is_analysis_id = false;
+    }
+
+    if (!reai_plugin_get_analysis_logs (core, id, is_analysis_id)) {
+        DISPLAY_ERROR ("Failed to fetch and display analysis logs");
+        return R_CMD_STATUS_ERROR;
+    }
+    return R_CMD_STATUS_OK;
+}
+
+/**
+ * REalb
+ * */
+R_IPI RCmdStatus
+    reai_get_analysis_logs_using_binary_id_handler (RCore* core, int argc, const char** argv) {
+    REAI_LOG_TRACE ("[CMD] Get Analysis Logs");
+    if (argc > 2 || r_str_startswith (argv[0], "REalb?")) {
+        DISPLAY_ERROR ("Usage: REalb <binary_id>  # Get RevEngAI analysis logs using binary id\n");
+        return R_CMD_STATUS_ERROR;
+    }
+
+    ReaiAnalysisId binary_id = 0;
+    if (argc == 2) {
+        binary_id = r_num_get (core->num, argv[1]);
+    } else {
+        binary_id = reai_binary_id();
+
+        if (!binary_id) {
+            DISPLAY_ERROR (
+                "You haven't provided any binary id.\n"
+                "Did you forget to apply an existing analysis or to create a new one?\n"
+                "Cannot fetch analysis logs\n"
+            );
+            return R_CMD_STATUS_WRONG_ARGS;
+        }
+    }
+
+    if (!reai_plugin_get_analysis_logs (core, binary_id, false /* provided is a binary id */)) {
+        DISPLAY_ERROR ("Failed to fetch and display analysis logs");
+        if (argc == 1) {
+            DISPLAY_ERROR (
+                "Please apply an existing analysis to use it as a default one for viewing logs."
+            );
+        }
+        return R_CMD_STATUS_ERROR;
+    }
+    return R_CMD_STATUS_OK;
 }
 
 /**
@@ -423,7 +574,7 @@ R_IPI RCmdStatus
 R_IPI RCmdStatus reai_analysis_cmd_group_help_handler (RCore* core, int argc, const char** argv) {
     UNUSED (core && argc && argv);
 
-    if (!r_str_startswith (argv[0], "REa?")) {
+    if (!r_str_startswith (argv[0], "REa??")) {
         DISPLAY_ERROR (
             "ERROR: Command '%s' does not exist.\n"
             "ERROR: Displaying the help of command 'REa'.\n\n",
@@ -432,34 +583,31 @@ R_IPI RCmdStatus reai_analysis_cmd_group_help_handler (RCore* core, int argc, co
     }
 
     DISPLAY_INFO (
-        "Usage: REa<cup?>   # RevEngAI commands for interacting with analyses\n"
-        "| REac <prog_name> <cmd_line_args> <ai_model>  # Create a PRIVATE RevEngAI analysis for "
+        "Usage: REa[prolue?]   # RevEngAI commands for interacting with analyses\n"
+        "| REa <ai_model> <prog_name> [<cmd_line_args>] # Create a PUBLIC RevEngAI analysis for "
         "currently opened binary\n"
-        "| REacp <prog_name> <cmd_line_args> <ai_model> # Create a PUBLIC RevEngAI analysis for "
+        "| REap <ai_model> <prog_name> [<cmd_line_args>] # Create a PRIVATE RevEngAI analysis for "
         "currently opened binary\n"
-        "| REau <min_similarity>=90                     # Auto analyze binary functions using ANN "
-        "and perform batch rename.\n"
-        "| REaud <min_similarity>=90                    # Auto analyze binary functions using ANN "
-        "and perform batch rename. Restrict renamed symbols to debug names only.\n"
-        "| REap <bin_id> [<base_addr>]                  # Apply already existing RevEng.AI "
-        "analysis to this binary.\n"
+        "| REar                     # Get most recent analyses\n"
+        "| REao [<binary_id>]       # Provide link to show more analysis information on RevEngAI "
+        "portal\n"
+        "| REal[b]                  # Get RevEngAI analysis logs\n"
+        "| REau <min_similarity>=90 # Auto analyze binary functions using ANN and perform batch "
+        "rename.\n"
+        "| REaud <min_similarity>=90 # Auto analyze binary functions using ANN and perform batch "
+        "rename. Restrict renamed symbols to debug names only.\n"
+        "| REae <bin_id> [<base_addr>] # Apply existing RevEng.AI analysis to this binary.\n"
+        "\n"
+        "Detailed help for REa <ai_model> <prog_name> [<cmd_line_args>] is provided by REa?.\n"
     );
     return R_CMD_STATUS_OK;
 }
 
 /**
- * "REbl"
+ * "REao"
  * */
-R_IPI RCmdStatus reai_binary_link_handler (RCore* core, int argc, const char** argv) {
-    UNUSED (core);
-    REAI_LOG_TRACE ("[CMD] Binary Link");
-    if (argc > 2 || r_str_startswith (argv[0], "REbl?")) {
-        DISPLAY_ERROR (
-            "Usage: REbl <binary_id>   # Provide link to show more binary information on RevEngAI "
-            "portal"
-        );
-        return R_CMD_STATUS_ERROR;
-    }
+R_IPI RCmdStatus reai_analysis_link_handler (RCore* core, int argc, const char** argv) {
+    UNUSED (argc);
 
     ReaiBinaryId bid = 0;
     if (argc == 2) {
@@ -470,13 +618,20 @@ R_IPI RCmdStatus reai_binary_link_handler (RCore* core, int argc, const char** a
         }
     } else {
         bid = reai_binary_id();
+        if (!bid) {
+            APPEND_ERROR ("No existing analysis applied. Don't know what analysis to open.");
+            DISPLAY_ERROR (
+                "Please either apply an existing analysis or provide me a binary ID to open an "
+                "analysis page"
+            );
+        }
     }
 
     // generate portal link
     char* host = strdup (reai_plugin()->reai_config->host);
     host       = r_str_replace (host, "api", "portal", 0 /* replace first only */);
     if (!host) {
-        APPEND_ERROR ("Failed to generate portal link");
+        DISPLAY_ERROR ("Failed to generate portal link");
         return R_CMD_STATUS_ERROR;
     }
 
@@ -488,23 +643,40 @@ R_IPI RCmdStatus reai_binary_link_handler (RCore* core, int argc, const char** a
         reai_analysis_id_from_binary_id (reai(), reai_response(), bid)
     );
 
+    CString syscmd = NULL;
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+    syscmd = "start";
+#elif __APPLE__
+    syscmd = "open";
+#elif __linux__
+    syscmd = "xdg-open";
+#else
+    syscmd = NULL;
+#    warn "Unsupported OS. Won't open links from command line."
+#endif
+
+    if (syscmd) {
+        CString cmd = r_str_newf (
+            "%s %s/analyses/%llu?analysis-id=%llu",
+            syscmd,
+            host,
+            bid,
+            reai_analysis_id_from_binary_id (reai(), reai_response(), bid)
+        );
+        r_sys_cmd (cmd);
+        FREE (cmd);
+    }
+
     FREE (host);
 
     return R_CMD_STATUS_OK;
 }
 
 /**
- * REcl
+ * REco
  * */
 R_IPI RCmdStatus reai_collection_link_handler (RCore* core, int argc, const char** argv) {
-    REAI_LOG_TRACE ("[CMD] Collection Link");
-    if (argc > 2 || r_str_startswith (argv[0], "REcl?")) {
-        DISPLAY_ERROR (
-            "Usage: REcl <collection_id>   # Provide a RevEngAI link to view more information "
-            "about collection in browser."
-        );
-        return R_CMD_STATUS_ERROR;
-    }
+    UNUSED (argc);
 
     ReaiCollectionId cid = argv[1] && strlen (argv[1]) ? r_num_get (core->num, argv[1]) : 0;
 
@@ -519,6 +691,26 @@ R_IPI RCmdStatus reai_collection_link_handler (RCore* core, int argc, const char
     // TODO: should we also get basic collection information and display it here?
     DISPLAY_INFO ("%s/collections/%llu", host, cid);
 
+    CString syscmd = NULL;
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+    syscmd = "start";
+#elif __APPLE__
+    syscmd = "open";
+#elif __linux__
+    syscmd = "xdg-open";
+#else
+    syscmd = NULL;
+#    warn "Unsupported OS. Won't open links from command line."
+#endif
+
+    if (syscmd) {
+        CString cmd = r_str_newf ("%s %s/collections/%llu", syscmd, host, cid);
+        r_sys_cmd (cmd);
+        FREE (cmd);
+    }
+
+    FREE (host);
+
     FREE (host);
 
     return R_CMD_STATUS_OK;
@@ -532,7 +724,7 @@ R_IPI RCmdStatus reai_binary_search_by_name_handler (RCore* core, int argc, cons
     REAI_LOG_TRACE ("[CMD] Binary Search (By Name)");
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REbsn?")) {
         DISPLAY_ERROR (
-            "Usage: REbsn <partial_name> <model_name>=   # Search for binaries using partial name "
+            "Usage: REbsn <partial_name> [model_name]   # Search for binaries using partial name "
             "only."
         );
         return R_CMD_STATUS_ERROR;
@@ -554,7 +746,7 @@ R_IPI RCmdStatus reai_binary_search_by_sha256_handler (RCore* core, int argc, co
     REAI_LOG_TRACE ("[CMD] Binary Search (By SHA-256 Hash)");
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REbsh?")) {
         DISPLAY_ERROR (
-            "Usage: REbsh <partial_sha256> <model_name>=   # Search for binaries using partial "
+            "Usage: REbsh <partial_sha256> [model_name]   # Search for binaries using partial "
             "sha256 hash only."
         );
         return R_CMD_STATUS_ERROR;
@@ -574,14 +766,15 @@ R_IPI RCmdStatus reai_binary_search_by_sha256_handler (RCore* core, int argc, co
  * */
 R_IPI RCmdStatus reai_binary_search_handler (RCore* core, int argc, const char** argv) {
     REAI_LOG_TRACE ("[CMD] Binary Search");
-    if (argc < 2 || argc > 4 || r_str_startswith (argv[0], "REbsh?")) {
+    if (argc < 2 || argc > 4 || r_str_startswith (argv[0], "REbs?")) {
         DISPLAY_ERROR (
             "Usage: REbs[nh]   # Commands for performing binary search in RevEngAI\n"
-            "| REbs <partial_name> <partial_sha256> <model_name> <tags_csv> # Search for binaries "
+            "| REbs <partial_name> <partial_sha256> [<model_name>] [<tags_csv>] # Search for "
+            "binaries "
             "using partial name, partial sha256 hash, etc...\n"
-            "| REbsn <partial_name> <model_name>=                     # Search for binaries using "
+            "| REbsn <partial_name> [model_name]                     # Search for binaries using "
             "partial name only.\n"
-            "| REbsh <partial_sha256> <model_name>=                   # Search for binaries using "
+            "| REbsh <partial_sha256> [model_name]                   # Search for binaries using "
             "partial sha256 hash only.\n"
         );
         return R_CMD_STATUS_ERROR;
@@ -590,8 +783,9 @@ R_IPI RCmdStatus reai_binary_search_handler (RCore* core, int argc, const char**
     CString partial_name   = argv[1] && strlen (argv[1]) ? argv[1] : NULL;
     CString partial_sha256 = argv[2] && strlen (argv[2]) ? argv[2] : NULL;
     CString model_name     = argv[3] && strlen (argv[3]) ? argv[3] : NULL;
+    CString tags_csv       = argv[4] && strlen (argv[4]) ? argv[4] : NULL;
 
-    if (reai_plugin_binary_search (core, partial_name, partial_sha256, model_name, NULL)) {
+    if (reai_plugin_binary_search (core, partial_name, partial_sha256, model_name, tags_csv)) {
         return R_CMD_STATUS_OK;
     }
     return R_CMD_STATUS_ERROR;
@@ -638,9 +832,9 @@ R_IPI RCmdStatus reai_function_cmd_group_help_handler (RCore* core, int argc, co
         "Usage: REf<lrs?>   # RevEngAI commands for interacting with functions\n"
         "| REfl                     # Get & show basic function info for selected binary.\n"
         "| REfr <old_name> <new_name> # Rename function with given function id to given name.\n"
-        "| REfs <function_name> <min_similarity>=95 <max_results>=20 <collection_ids>= "
-        "<binary_ids>= # RevEng.AI ANN functions similarity search.\n"
-        "| REfsd <function_name> <min_similarity>=95 <max_results>=20 <collections>= # RevEng.AI "
+        "| REfs <function_name> <min_similarity>=95 <max_results>=20 [collection_ids] "
+        "[binary_ids] # RevEng.AI ANN functions similarity search.\n"
+        "| REfsd <function_name> <min_similarity>=95 <max_results>=20 [collections] # RevEng.AI "
         "ANN functions similarity search. Suggestions restricted to debug symbols only.\n"
     );
 
@@ -788,6 +982,50 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
 }
 
 /**
+ * "REfo"
+ *
+ * */
+R_IPI RCmdStatus reai_function_link_handler (RCore* core, int argc, const char** argv) {
+    REAI_LOG_TRACE ("[CMD] function link");
+    UNUSED (argc);
+
+    ReaiFunctionId fid = argv[1] && strlen (argv[1]) ? r_num_get (core->num, argv[1]) : 0;
+
+    // generate portal link
+    char* host = strdup (reai_plugin()->reai_config->host);
+    host       = r_str_replace (host, "api", "portal", 0 /* replace first only */);
+    if (!host) {
+        DISPLAY_ERROR ("Failed to generate portal link");
+        return R_CMD_STATUS_ERROR;
+    }
+
+    // TODO: should we also get basic function information and display it here?
+    DISPLAY_INFO ("%s/functions/%llu", host, fid);
+
+    CString syscmd = NULL;
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+    syscmd = "start";
+#elif __APPLE__
+    syscmd = "open";
+#elif __linux__
+    syscmd = "xdg-open";
+#else
+    syscmd = NULL;
+#    warn "Unsupported OS. Won't open links from command line."
+#endif
+
+    if (syscmd) {
+        CString cmd = r_str_newf ("%s %s/function/%llu", syscmd, host, fid);
+        r_sys_cmd (cmd);
+        FREE (cmd);
+    }
+
+    FREE (host);
+
+    return R_CMD_STATUS_OK;
+}
+
+/**
  * "REfl"
  *
  * @b Get information about all functions detected by the AI model from
@@ -812,7 +1050,7 @@ R_IPI RCmdStatus reai_get_basic_function_info_handler (RCore* core, int argc, co
     ReaiBinaryId binary_id = reai_binary_id();
     if (!binary_id) {
         DISPLAY_ERROR (
-            "Please apply existing RevEngAI analysis (using REap command) or create a new one.\n"
+            "Please apply existing RevEngAI analysis (using REae command) or create a new one.\n"
             "Cannot get function info from RevEng.AI without an existing analysis."
         );
         return R_CMD_STATUS_ERROR;
@@ -918,7 +1156,7 @@ R_IPI RCmdStatus reai_rename_function_handler (RCore* core, int argc, const char
     ReaiBinaryId binary_id = reai_binary_id();
     if (!binary_id) {
         DISPLAY_ERROR (
-            "Please apply existing RevEngAI analysis (using REap command) or create a new one.\n"
+            "Please apply existing RevEngAI analysis (using REae command) or create a new one.\n"
             "Cannot get function info from RevEng.AI without an existing analysis."
         );
         return R_CMD_STATUS_ERROR;
@@ -1019,8 +1257,8 @@ R_IPI RCmdStatus
     REAI_LOG_TRACE ("[CMD] Function similarity search");
     if (argc < 2 || r_str_startswith (argv[0], "REfs?")) {
         DISPLAY_ERROR (
-            "Usage: REfs <function_name> <min_similarity>=95 <max_results>=20 <collection_ids>= "
-            "<binary_ids>=   # RevEng.AI ANN functions similarity search.\n"
+            "Usage: REfs <function_name> <min_similarity>=95 <max_results>=20 [collection_ids] "
+            "[binary_ids]   # RevEng.AI ANN functions similarity search.\n"
             "\n"
             "Function Name:\n"
             "| REfs sym.main                     # Search similar function for sym.main function "
@@ -1080,8 +1318,8 @@ R_IPI RCmdStatus reai_function_similarity_search_restrict_debug_handler (
     REAI_LOG_TRACE ("[CMD] Function similarity search");
     if (argc < 2 || argc > 6 || r_str_startswith (argv[0], "REfsd?")) {
         DISPLAY_ERROR (
-            "Usage: REfsd <function_name> <min_similarity>=95 <max_results>=20 <collection_ids>= "
-            "<binary_ids>=   # RevEng.AI ANN functions similarity search. Search suggestions "
+            "Usage: REfsd <function_name> <min_similarity>=95 <max_results>=20 [collection_ids] "
+            "[binary_ids]   # RevEng.AI ANN functions similarity search. Search suggestions "
             "restricted to debug symbols only.\n"
             "\n"
             "Function Name:\n"
@@ -1162,7 +1400,7 @@ R_IPI RCmdStatus
     reai_collection_search_by_collection_name_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcsn?")) {
         DISPLAY_ERROR (
-            "Usage: REcsc <partial_collection_name>= <model_name>=   # Perform a collection search "
+            "Usage: REcsc [partial_collection_name] [model_name]   # Perform a collection search "
             "through partial collection name only.\n"
             "\n"
             "Examples:\n"
@@ -1200,7 +1438,7 @@ R_IPI RCmdStatus
     reai_collection_search_by_binary_name_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcsn?")) {
         DISPLAY_ERROR (
-            "Usage: REcsb <partial_binary_name>= <model_name>=   # Perform a collection search "
+            "Usage: REcsb [partial_binary_name] [model_name]   # Perform a collection search "
             "through partial binary name only.\n"
             "\n"
             "Examples:\n"
@@ -1231,7 +1469,7 @@ R_IPI RCmdStatus
     reai_collection_search_by_binary_sha256_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcsn?")) {
         DISPLAY_ERROR (
-            "Usage: REcsh <partial_binary_sha256>= <model_name>=   # Perform a collection search "
+            "Usage: REcsh [partial_binary_sha256] [model_name]   # Perform a collection search "
             "through partial SHA256 hash only.\n"
             "\n"
             "Examples:\n"
@@ -1261,8 +1499,8 @@ R_IPI RCmdStatus
 R_IPI RCmdStatus reai_collection_search_handler (RCore* core, int argc, const char** argv) {
     if (r_str_startswith (argv[0], "REcs??")) {
         DISPLAY_ERROR (
-            "Usage: REcs <partial_collection_name>= <partial_binary_name>= "
-            "<partial_binary_sha256>= <model_name>= <tags>=   # Perform a collection search "
+            "Usage: REcs [partial_collection_name] [partial_binary_name] "
+            "[partial_binary_sha256] [model_name] [tags]   # Perform a collection search "
             "through either partial collection name, binary\n"
             "                                                                                      "
             "                           name or sha256 hash of binary.\n\n"
@@ -1287,20 +1525,20 @@ R_IPI RCmdStatus reai_collection_search_handler (RCore* core, int argc, const ch
         DISPLAY_ERROR (
             "Usage: REcs[cbh]   # Perform a collection search through either partial collection "
             "name, binary name or sha256 hash of binary.\n"
-            "| REcs <partial_collection_name>= <partial_binary_name>= <partial_binary_sha256>= "
-            "<model_name>= <tags>= # Perform a collection search through either partial collection "
+            "| REcs [partial_collection_name] [partial_binary_name] [partial_binary_sha256] "
+            "[model_name] [tags] # Perform a collection search through either partial collection "
             "name, binary name or\n"
             "                                                                                      "
             "                    sha256 hash of binary.\n"
-            "| REcsc <partial_collection_name>= <model_name>=                 # Perform a "
+            "| REcsc [partial_collection_name] [model_name]                 # Perform a "
             "collection search through partial collection name only.\n"
-            "| REcsb <partial_binary_name>= <model_name>=                     # Perform a "
+            "| REcsb [partial_binary_name] [model_name]                     # Perform a "
             "collection search through partial binary name only.\n"
-            "| REcsh <partial_binary_sha256>= <model_name>=                   # Perform a "
+            "| REcsh [partial_binary_sha256] [model_name]                   # Perform a "
             "collection search through partial SHA256 hash only.\n"
             "\n"
-            "Detailed help for REcs <partial_collection_name>= <partial_binary_name>= "
-            "<partial_binary_sha256>= <model_name>= <tags>= is provided by REcs??.\n"
+            "Detailed help for REcs [partial_collection_name] [partial_binary_name] "
+            "[partial_binary_sha256] [model_name] [tags] is provided by REcs??.\n"
         );
         return R_CMD_STATUS_ERROR;
     }
@@ -1370,7 +1608,7 @@ R_IPI RCmdStatus
     reai_collection_basic_info_asc_time_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcat?")) {
         DISPLAY_ERROR (
-            "Usage: REcat <search_term> <filter_flags>=   # Get information about collections, "
+            "Usage: REcat <search_term> [filter_flags]   # Get information about collections, "
             "ordered by creation time, in ascending order.\n"
             "\n"
             "Examples:\n"
@@ -1415,7 +1653,7 @@ R_IPI RCmdStatus
     reai_collection_basic_info_asc_owner_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcao?")) {
         DISPLAY_ERROR (
-            "Usage: REcao <search_term> <filter_flags>=   # Get information about collections, "
+            "Usage: REcao <search_term> [filter_flags]   # Get information about collections, "
             "ordered by collection owner, in ascending order.\n"
             "\n"
             "Examples:\n"
@@ -1460,7 +1698,7 @@ R_IPI RCmdStatus
     reai_collection_basic_info_asc_name_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcan?")) {
         DISPLAY_ERROR (
-            "Usage: REcan <search_term> <filter_flags>=   # Get information about collections, "
+            "Usage: REcan <search_term> [filter_flags]   # Get information about collections, "
             "ordered by collection name, in ascending order.\n"
             "\n"
             "Examples:\n"
@@ -1505,7 +1743,7 @@ R_IPI RCmdStatus
     reai_collection_basic_info_asc_model_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcam?")) {
         DISPLAY_ERROR (
-            "Usage: REcam <search_term> <filter_flags>=   # Get information about collections, "
+            "Usage: REcam <search_term> [filter_flags]   # Get information about collections, "
             "ordered by model version, in ascending order.\n"
             "\n"
             "Examples:\n"
@@ -1550,7 +1788,7 @@ R_IPI RCmdStatus
     reai_collection_basic_info_asc_size_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcas?")) {
         DISPLAY_ERROR (
-            "Usage: REcas <search_term> <filter_flags>=   # Get information about collections, "
+            "Usage: REcas <search_term> [filter_flags]   # Get information about collections, "
             "ordered by collection size, in ascending order.\n"
             "\n"
             "Examples:\n"
@@ -1605,15 +1843,15 @@ R_IPI RCmdStatus reai_collection_basic_info_asc_cmd_group_help_handler (
 
     DISPLAY_INFO (
         "Usage: REca<tonms>   # Get information about collections, ordered in ascending order.\n"
-        "| REcat <search_term> <filter_flags>= # Get information about collections, ordered by "
+        "| REcat <search_term> [filter_flags] # Get information about collections, ordered by "
         "creation time, in ascending order.\n"
-        "| REcao <search_term> <filter_flags>= # Get information about collections, ordered by "
+        "| REcao <search_term> [filter_flags] # Get information about collections, ordered by "
         "collection owner, in ascending order.\n"
-        "| REcan <search_term> <filter_flags>= # Get information about collections, ordered by "
+        "| REcan <search_term> [filter_flags] # Get information about collections, ordered by "
         "collection name, in ascending order.\n"
-        "| REcam <search_term> <filter_flags>= # Get information about collections, ordered by "
+        "| REcam <search_term> [filter_flags] # Get information about collections, ordered by "
         "model version, in ascending order.\n"
-        "| REcas <search_term> <filter_flags>= # Get information about collections, ordered by "
+        "| REcas <search_term> [filter_flags] # Get information about collections, ordered by "
         "collection size, in ascending order.\n"
     );
 
@@ -1627,7 +1865,7 @@ R_IPI RCmdStatus
     reai_collection_basic_info_desc_time_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcdt?")) {
         DISPLAY_ERROR (
-            "Usage: REcdt <search_term> <filter_flags>=   # Get information about collections, "
+            "Usage: REcdt <search_term> [filter_flags]   # Get information about collections, "
             "ordered by creation time, in descending order.\n"
             "\n"
             "Examples:\n"
@@ -1672,7 +1910,7 @@ R_IPI RCmdStatus
     reai_collection_basic_info_desc_owner_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcdo?")) {
         DISPLAY_ERROR (
-            "Usage: REcdo <search_term> <filter_flags>=   # Get information about collections, "
+            "Usage: REcdo <search_term> [filter_flags]   # Get information about collections, "
             "ordered by collection owner, in descending order.\n"
             "\n"
             "Examples:\n"
@@ -1717,7 +1955,7 @@ R_IPI RCmdStatus
     reai_collection_basic_info_desc_name_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcdn?")) {
         DISPLAY_ERROR (
-            "Usage: REcdn <search_term> <filter_flags>=   # Get information about collections, "
+            "Usage: REcdn <search_term> [filter_flags]   # Get information about collections, "
             "ordered by collection name, in descending order.\n"
             "\n"
             "Examples:\n"
@@ -1762,7 +2000,7 @@ R_IPI RCmdStatus
     reai_collection_basic_info_desc_model_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcdm?")) {
         DISPLAY_ERROR (
-            "Usage: REcdm <search_term> <filter_flags>=   # Get information about collections, "
+            "Usage: REcdm <search_term> [filter_flags]   # Get information about collections, "
             "ordered by model version, in descending order.\n"
             "\n"
             "Examples:\n"
@@ -1807,7 +2045,7 @@ R_IPI RCmdStatus
     reai_collection_basic_info_desc_size_handler (RCore* core, int argc, const char** argv) {
     if (argc < 2 || argc > 3 || r_str_startswith (argv[0], "REcds?")) {
         DISPLAY_ERROR (
-            "Usage: REcds <search_term> <filter_flags>=   # Get information about collections, "
+            "Usage: REcds <search_term> [filter_flags]   # Get information about collections, "
             "ordered by collection size, in descending order.\n"
             "\n"
             "Examples:\n"
@@ -1862,15 +2100,15 @@ R_IPI RCmdStatus reai_collection_basic_info_desc_cmd_group_help_handler (
 
     DISPLAY_INFO (
         "Usage: REcd<tonms>   # Get information about collections, ordered in descending order.\n"
-        "| REcdt <search_term> <filter_flags>= # Get information about collections, ordered by "
+        "| REcdt <search_term> [filter_flags] # Get information about collections, ordered by "
         "creation time, in descending order.\n"
-        "| REcdo <search_term> <filter_flags>= # Get information about collections, ordered by "
+        "| REcdo <search_term> [filter_flags] # Get information about collections, ordered by "
         "collection owner, in descending order.\n"
-        "| REcdn <search_term> <filter_flags>= # Get information about collections, ordered by "
+        "| REcdn <search_term> [filter_flags] # Get information about collections, ordered by "
         "collection name, in descending order.\n"
-        "| REcdm <search_term> <filter_flags>= # Get information about collections, ordered by "
+        "| REcdm <search_term> [filter_flags] # Get information about collections, ordered by "
         "model version, in descending order.\n"
-        "| REcds <search_term> <filter_flags>= # Get information about collections, ordered by "
+        "| REcds <search_term> [filter_flags] # Get information about collections, ordered by "
         "collection size, in descending order.\n"
     );
 

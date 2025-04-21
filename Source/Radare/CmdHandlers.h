@@ -35,8 +35,16 @@ R_IPI RCmdStatus
 R_IPI RCmdStatus reai_apply_existing_analysis_handler (RCore* core, int argc, const char** argv);
 // "REa"
 R_IPI RCmdStatus reai_analysis_cmd_group_help_handler (RCore* core, int argc, const char** argv);
+// "REar"
+R_IPI RCmdStatus reai_get_recent_analyses_handler (RCore* core, int argc, const char** argv);
+// "REal"
+R_IPI RCmdStatus
+    reai_get_analysis_logs_using_analysis_id_handler (RCore* core, int argc, const char** argv);
+// "REalb"
+R_IPI RCmdStatus
+    reai_get_analysis_logs_using_binary_id_handler (RCore* core, int argc, const char** argv);
 // "REbl"
-R_IPI RCmdStatus reai_binary_link_handler (RCore* core, int argc, const char** argv);
+R_IPI RCmdStatus reai_analysis_link_handler (RCore* core, int argc, const char** argv);
 // "REbsn"
 R_IPI RCmdStatus reai_binary_search_by_name_handler (RCore* core, int argc, const char** argv);
 // "REbsh"
@@ -104,6 +112,8 @@ R_IPI RCmdStatus reai_collection_search_handler (RCore* core, int argc, const ch
 R_IPI RCmdStatus reai_collection_cmd_group_help_handler (RCore* core, int argc, const char** argv);
 // "REd"
 R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** argv);
+// "REfo"
+R_IPI RCmdStatus reai_function_link_handler (RCore* core, int argc, const char** argv);
 // "REfl"
 R_IPI RCmdStatus reai_get_basic_function_info_handler (RCore* core, int argc, const char** argv);
 // "REfr"

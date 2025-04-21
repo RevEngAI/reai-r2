@@ -116,20 +116,23 @@ void reai_init_cmd_handler_infos() {
         {  "REh",                              reai_health_check_handler, 0},
         {  "REd",                              reai_ai_decompile_handler, 0},
 
-        { "REac",                   reai_create_analysis_private_handler, 0},
-        {"REacp",                    reai_create_analysis_public_handler, 0},
+        {  "REa",                    reai_create_analysis_public_handler, 0},
+        { "REap",                   reai_create_analysis_private_handler, 0},
         { "REau",                          reai_ann_auto_analyze_handler, 0},
         {"REaud",           reai_ann_auto_analyze_restrict_debug_handler, 0},
-        { "REap",                   reai_apply_existing_analysis_handler, 0},
-        {  "REa",                   reai_analysis_cmd_group_help_handler, 0},
+        { "REae",                   reai_apply_existing_analysis_handler, 0},
+        { "REao",                             reai_analysis_link_handler, 0},
+        { "REar",                       reai_get_recent_analyses_handler, 0},
+        { "REal",       reai_get_analysis_logs_using_analysis_id_handler, 0},
+        {"REalb",         reai_get_analysis_logs_using_binary_id_handler, 0},
+        {"REa??",                   reai_analysis_cmd_group_help_handler, 0},
 
-        { "REbl",                               reai_binary_link_handler, 0},
         {"REbsn",                     reai_binary_search_by_name_handler, 0},
         {"REbsh",                   reai_binary_search_by_sha256_handler, 0},
         { "REbs",                             reai_binary_search_handler, 0},
         {  "REb",                     reai_binary_cmd_group_help_handler, 0},
 
-        { "REcl",                           reai_collection_link_handler, 0},
+        { "REco",                           reai_collection_link_handler, 0},
         {"REcat",            reai_collection_basic_info_asc_time_handler, 0},
         {"REcao",           reai_collection_basic_info_asc_owner_handler, 0},
         {"REcan",            reai_collection_basic_info_asc_name_handler, 0},
@@ -148,6 +151,7 @@ void reai_init_cmd_handler_infos() {
         { "REcs",                         reai_collection_search_handler, 0},
         {  "REc",                 reai_collection_cmd_group_help_handler, 0},
 
+        { "REfo",                             reai_function_link_handler, 0},
         { "REfl",                   reai_get_basic_function_info_handler, 0},
         { "REfr",                           reai_rename_function_handler, 0},
         { "REfs",                reai_function_similarity_search_handler, 0},
@@ -155,6 +159,7 @@ void reai_init_cmd_handler_infos() {
         {  "REf",                   reai_function_cmd_group_help_handler, 0},
 
         {"REart",                         reai_show_revengai_art_handler, 0},
+        {"REalb",         reai_get_analysis_logs_using_binary_id_handler, 0},
     };
     num_cmds = sizeof (handlers) / sizeof (handlers[0]);
 
@@ -183,7 +188,7 @@ int reai_r2_core_cmd (void *user, const char *input) {
         split_args (input, &argc, (char ***)&argv);
 
         bool cmd_dispatched = false;
-        for (int c = num_cmds - 1; c >= 0; c--) {
+        for (int c = num_cmds - 1; !cmd_dispatched && (c >= 0); c--) {
             // handler info
             ReaiCmdHandlerInfo *hi = &cmd_to_handler[c];
 
@@ -194,14 +199,16 @@ int reai_r2_core_cmd (void *user, const char *input) {
                 cmd_dispatched = true;
             }
 
-            // command help match
-            cmd[hi->cmdlen] = '?';
-            if (!strcmp (argv[0], cmd)) {
-                cmd_to_handler[c].handler (core, argc, argv);
-                cmd_dispatched = true;
-            }
+            if (!cmd_dispatched) {
+                // command help match
+                cmd[hi->cmdlen] = '?';
+                if (r_str_startswith (argv[0], cmd)) {
+                    cmd_to_handler[c].handler (core, argc, argv);
+                    cmd_dispatched = true;
+                }
 
-            cmd[hi->cmdlen] = 0;
+                cmd[hi->cmdlen] = 0;
+            }
         }
 
         if (!cmd_dispatched) {
