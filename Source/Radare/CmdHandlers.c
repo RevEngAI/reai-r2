@@ -1401,7 +1401,7 @@ R_IPI RCmdStatus
             search_term,
             filter_flags,
             REAI_COLLECTION_BASIC_INFO_ORDER_BY_CREATED,
-            REAI_COLLECTION_BASIC_INFO_ORDER_IN_ASC
+            true /* ascending order */
         )) {
         return R_CMD_STATUS_OK;
     }
@@ -1446,7 +1446,7 @@ R_IPI RCmdStatus
             search_term,
             filter_flags,
             REAI_COLLECTION_BASIC_INFO_ORDER_BY_OWNER,
-            REAI_COLLECTION_BASIC_INFO_ORDER_IN_ASC
+            true /* ascending order */
         )) {
         return R_CMD_STATUS_OK;
     }
@@ -1491,7 +1491,7 @@ R_IPI RCmdStatus
             search_term,
             filter_flags,
             REAI_COLLECTION_BASIC_INFO_ORDER_BY_COLLECTION,
-            REAI_COLLECTION_BASIC_INFO_ORDER_IN_ASC
+            true /* ascending order */
         )) {
         return R_CMD_STATUS_OK;
     }
@@ -1536,7 +1536,7 @@ R_IPI RCmdStatus
             search_term,
             filter_flags,
             REAI_COLLECTION_BASIC_INFO_ORDER_BY_MODEL,
-            REAI_COLLECTION_BASIC_INFO_ORDER_IN_ASC
+            true /* ascending order */
         )) {
         return R_CMD_STATUS_OK;
     }
@@ -1581,7 +1581,7 @@ R_IPI RCmdStatus
             search_term,
             filter_flags,
             REAI_COLLECTION_BASIC_INFO_ORDER_BY_COLLECTION_SIZE,
-            REAI_COLLECTION_BASIC_INFO_ORDER_IN_ASC
+            true /* ascending order */
         )) {
         return R_CMD_STATUS_OK;
     }
@@ -1658,7 +1658,7 @@ R_IPI RCmdStatus
             search_term,
             filter_flags,
             REAI_COLLECTION_BASIC_INFO_ORDER_BY_CREATED,
-            REAI_COLLECTION_BASIC_INFO_ORDER_IN_DESC
+            false /* descending order */
         )) {
         return R_CMD_STATUS_OK;
     }
@@ -1703,7 +1703,7 @@ R_IPI RCmdStatus
             search_term,
             filter_flags,
             REAI_COLLECTION_BASIC_INFO_ORDER_BY_OWNER,
-            REAI_COLLECTION_BASIC_INFO_ORDER_IN_DESC
+            false /* descending order */
         )) {
         return R_CMD_STATUS_OK;
     }
@@ -1748,7 +1748,7 @@ R_IPI RCmdStatus
             search_term,
             filter_flags,
             REAI_COLLECTION_BASIC_INFO_ORDER_BY_COLLECTION,
-            REAI_COLLECTION_BASIC_INFO_ORDER_IN_DESC
+            false /* descending order */
         )) {
         return R_CMD_STATUS_OK;
     }
@@ -1793,7 +1793,7 @@ R_IPI RCmdStatus
             search_term,
             filter_flags,
             REAI_COLLECTION_BASIC_INFO_ORDER_BY_MODEL,
-            REAI_COLLECTION_BASIC_INFO_ORDER_IN_DESC
+            false /* descending order */
         )) {
         return R_CMD_STATUS_OK;
     }
@@ -1838,7 +1838,7 @@ R_IPI RCmdStatus
             search_term,
             filter_flags,
             REAI_COLLECTION_BASIC_INFO_ORDER_BY_COLLECTION_SIZE,
-            REAI_COLLECTION_BASIC_INFO_ORDER_IN_DESC
+            false /* descending order */
         )) {
         return R_CMD_STATUS_OK;
     }

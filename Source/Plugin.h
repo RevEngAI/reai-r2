@@ -111,7 +111,7 @@ extern "C" {
         CString                            search_term,
         ReaiCollectionBasicInfoFilterFlags filter_flags,
         ReaiCollectionBasicInfoOrderBy     order_by,
-        ReaiCollectionBasicInfoOrderIn     order_in
+        Bool                               order_in_asc
     );
 
     Bool reai_plugin_binary_search (

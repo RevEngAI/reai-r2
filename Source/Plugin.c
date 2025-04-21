@@ -699,7 +699,14 @@ Bool reai_plugin_create_analysis_for_opened_binary_file (
         sha256,
         prog_name,
         cmdline_args, // cmdline args
-        r_bin_get_size (bin)
+        r_bin_get_size (bin),
+        false,        // dynamic_execution,
+        true,         // skip_scraping,
+        true,         // skip_cves,
+        true,         // skip_sbom,
+        true,         // skip_capabilities,
+        false,        // ignore_cache,
+        false         // do_advanced_analysis
     );
 
     if (!bin_id) {
@@ -1453,7 +1460,12 @@ ReaiAiDecompilationStatus reai_plugin_check_decompiler_status_running_at (RCore 
         return REAI_AI_DECOMPILATION_STATUS_ERROR;
     }
 
-    return reai_poll_ai_decompilation (reai(), reai_response(), fn_id);
+    return reai_poll_ai_decompilation (
+        reai(),
+        reai_response(),
+        fn_id,
+        false /* no decompiler summary */
+    );
 }
 
 /**
@@ -1480,11 +1492,18 @@ CString reai_plugin_get_decompiled_code_at (RCore *core, ut64 addr) {
         return NULL;
     }
 
-    ReaiAiDecompilationStatus status = reai_poll_ai_decompilation (reai(), reai_response(), fn_id);
+    ReaiAiDecompilationStatus status =
+        reai_poll_ai_decompilation (reai(), reai_response(), fn_id, true /* get summary as well */);
     if (status == REAI_AI_DECOMPILATION_STATUS_SUCCESS) {
         CString decomp = reai_response()->poll_ai_decompilation.data.decompilation;
-        decomp =
-            decomp ? (strlen (decomp) ? strdup (decomp) : strdup ("(empty)")) : strdup ("(null)");
+
+        char *summary = (char *)reai_response()->poll_ai_decompilation.data.summary;
+        if (summary) {
+            summary = strdup (summary);
+            summary = r_str_appendf (summary, "\n%s", decomp ? decomp : "(empty)");
+
+            decomp = summary;
+        }
         return decomp;
     }
 
@@ -1564,7 +1583,7 @@ Bool reai_plugin_collection_basic_info (
     CString                            search_term,
     ReaiCollectionBasicInfoFilterFlags filter_flags,
     ReaiCollectionBasicInfoOrderBy     order_by,
-    ReaiCollectionBasicInfoOrderIn     order_in
+    Bool                               order_in_asc
 ) {
     if (!core) {
         APPEND_ERROR ("Invalid arguments");
@@ -1601,21 +1620,7 @@ Bool reai_plugin_collection_basic_info (
             );
     }
 
-    CString ordered_in_str = NULL;
-    switch (order_in) {
-        case REAI_COLLECTION_BASIC_INFO_ORDER_IN_DESC :
-            ordered_in_str = "descending";
-            break;
-        case REAI_COLLECTION_BASIC_INFO_ORDER_IN_ASC :
-            ordered_in_str = "ascending";
-            break;
-        default :
-            order_in       = REAI_COLLECTION_BASIC_INFO_ORDER_IN_ASC;
-            ordered_in_str = "ascending";
-            REAI_LOG_DEBUG (
-                "Invalid order_in enum was provided. Corrected to default value \"ascending\""
-            );
-    }
+    CString ordered_in_str = order_in_asc ? "ascending" : "descending";
 
     ReaiCollectionBasicInfoVec *basic_info_vec = reai_get_basic_collection_info (
         reai(),
@@ -1625,7 +1630,7 @@ Bool reai_plugin_collection_basic_info (
         25,
         0,
         order_by,
-        order_in
+        order_in_asc
     );
 
     if (basic_info_vec) {
