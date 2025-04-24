@@ -4,6 +4,16 @@ RevEng.AI plugin for Radare.
 
 ## Installation
 
+### R2PM
+
+The easiest and prefered way to install plugins in [radare2](https://github.com/radareorg/radare2) is via r2pm:
+
+```
+r2pm -Uci reai-r2
+```
+
+Alternatively you can also try with docker or the manual steps
+
 ### Docker
 
 Don't want to go through all the manual hassle? We have a dockerfile as well.
