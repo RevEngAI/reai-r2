@@ -12,11 +12,7 @@
     - Build the plugin using `BuildOnWindows.ps1` script
     - Update development environment by executing the following in current shell (where you want to subsequent builds)
     ```ps1
-    $CWD = $PWD.Path -replace '\\', '\\'
-	$BuildDir = "Build\\WindowsBuild"
-	$DownPath = "$CWD\\$BuildDir\\Artifacts"
-	$DepsPath = "$CWD\\$BuildDir\\Dependencies"
-	$InstallPath = "$CWD\\WindowsInstall"
+	$InstallPath = "Build\\WindowsInstall"
 	$env:Path = $env:Path + ";$InstallPath;$InstallPath\\bin;$InstallPath\\lib"
     ```
 	 - Go to cloned `reai-r2` repo, and then use the cmake configure, build and install commands from `BuildOnWindows.ps1` script to build the plugin with your latest changes
@@ -35,15 +31,15 @@
   ```
   - Build
    ```ps1
-   cmake --build "Build" --config Release
+   cmake --build Build --config Release
    ```
   - Clean
    ```ps1
-   cmake --build "Build" --config Release --target clean
+   cmake --build Build --config Release --target clean
    ```
   - Install
    ```ps1
-   cmake --install "Build" --prefix "$InstallPath" --config Release
+   cmake --install Build --prefix "$InstallPath" --config Release
    ```
 
 Make sure when you update `creait` code, you build and install it in the same way.
