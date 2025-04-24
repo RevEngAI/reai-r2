@@ -34,7 +34,7 @@ if(MSVC) # Windows
     # std::numeric_limits<...>::max()
     # (http://stackoverflow.com/questions/1904635/warning-c4003-and-errors-c2589-and-c2059-on-x-stdnumeric-limitsintmax).
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /DNOMINMAX")
-elseif(UNIX) # Linux or macOS
+elseif(UNIX OR MINGW) # Linux or macOS
     # Set C flags
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
@@ -75,12 +75,23 @@ message(STATUS "CMake module path: ${CMAKE_MODULE_PATH}")
 # This will give us path where plugins are installed on this sytem, also libraries to be linked.
 pkg_check_modules(Radare REQUIRED r_core)
 
+# Get path of radare2 executable
+execute_process(
+    COMMAND where radare2
+    OUTPUT_VARIABLE R2_PATH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+message("Resolved path to r2: ${R2_PATH}")
+
 # Get user plugin storage path 
 execute_process(
-    COMMAND r2 -H R2_USER_PLUGINS
+    COMMAND radare2 -H R2_USER_PLUGINS
     OUTPUT_VARIABLE RADARE_INSTALL_PLUGDIR
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+
+message("Radare2 plugin will be installed at ${RADARE_INSTALL_PLUGDIR}")
 
 # TODO:
 # if(NOT BUILD_RADARE_PLUGIN_ONLY)
