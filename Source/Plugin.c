@@ -1153,10 +1153,7 @@ ReaiFunctionId reai_plugin_get_function_id_for_radare_function (RCore *core, RAn
 
     for (ReaiFnInfo *fn_info = fn_infos->items; fn_info < fn_infos->items + fn_infos->count;
          fn_info++) {
-        Uint64 min_addr = r_anal_function_min_addr (r_fn) - base_addr;
-        Uint64 max_addr = r_anal_function_max_addr (r_fn) - base_addr;
-
-        if (min_addr <= fn_info->vaddr && fn_info->vaddr <= max_addr) {
+        if (r_fn->addr == fn_info->vaddr + base_addr) {
             REAI_LOG_TRACE (
                 "Found function ID for radare function \"%s\" (\"%s\"): [%llu]",
                 r_fn->name,
