@@ -14,7 +14,7 @@
 
 /**
  * Following macros are defined to make use of "eprintf" instead of
- * fprintf. This or otherwise rizin does not allow using stderr for output.
+ * fprintf. This or otherwise radare does not allow using stderr for output.
  * */
 
 #ifdef RETURN_VALUE_IF

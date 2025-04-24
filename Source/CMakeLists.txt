@@ -10,7 +10,3 @@ find_package(CURL REQUIRED)
 set(CREAIT_LIBRARIES ${CURL_LIBRAIRES} CURL::libcurl reai cjson toml)
 
 add_subdirectory(Radare)
-
-# if(NOT BUILD_RIZIN_PLUGIN_ONLY)
-#   add_subdirectory(Iaito)
-# endif()

@@ -178,7 +178,7 @@ R_IPI RCmdStatus reai_create_analysis_private_handler (RCore* core, int argc, co
     }
     REAI_LOG_TRACE ("[CMD] create analysis");
 
-    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    /* Make sure analysis functions exist in radare as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         r_core_cmd_call (core, "aaaaa");
     }
@@ -250,7 +250,7 @@ R_IPI RCmdStatus reai_create_analysis_public_handler (RCore* core, int argc, con
         reai_analysis_cmd_group_help_handler (NULL, 0, NULL);
     }
 
-    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    /* Make sure analysis functions exist in radare as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         r_core_cmd_call (core, "aaaaa");
     }
@@ -306,7 +306,7 @@ R_IPI RCmdStatus reai_apply_existing_analysis_handler (RCore* core, int argc, co
         return R_CMD_STATUS_ERROR;
     }
 
-    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    /* Make sure analysis functions exist in radare as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         r_core_cmd_call (core, "aaaaa");
     }
@@ -487,7 +487,7 @@ R_IPI RCmdStatus reai_ann_auto_analyze_handler (RCore* core, int argc, const cha
         return R_CMD_STATUS_ERROR;
     }
 
-    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    /* Make sure analysis functions exist in radare as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         r_core_cmd_call (core, "aaaaa");
     }
@@ -535,7 +535,7 @@ R_IPI RCmdStatus
         return R_CMD_STATUS_ERROR;
     }
 
-    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    /* Make sure analysis functions exist in radare as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         r_core_cmd_call (core, "aaaaa");
     }
@@ -849,7 +849,7 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
         return R_CMD_STATUS_ERROR;
     }
 
-    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    /* Make sure analysis functions exist in radare as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         r_core_cmd_call (core, "aaaaa");
     }
@@ -1137,7 +1137,7 @@ R_IPI RCmdStatus reai_get_basic_function_info_handler (RCore* core, int argc, co
         }
     }
 
-    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    /* Make sure analysis functions exist in radare as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         r_core_cmd_call (core, "aaaaa");
     }
@@ -1243,7 +1243,7 @@ R_IPI RCmdStatus reai_rename_function_handler (RCore* core, int argc, const char
         }
     }
 
-    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    /* Make sure analysis functions exist in radare as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         r_core_cmd_call (core, "aaaaa");
     }
@@ -1310,7 +1310,7 @@ R_IPI RCmdStatus
         return R_CMD_STATUS_ERROR;
     }
 
-    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    /* Make sure analysis functions exist in radare as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         r_core_cmd_call (core, "aaaaa");
     }
@@ -1372,7 +1372,7 @@ R_IPI RCmdStatus reai_function_similarity_search_restrict_debug_handler (
         return R_CMD_STATUS_ERROR;
     }
 
-    /* Make sure analysis functions exist in rizin as well, so we can get functions by their address values. */
+    /* Make sure analysis functions exist in radare as well, so we can get functions by their address values. */
     if (!reai_plugin_get_radare_analysis_function_count (core)) {
         r_core_cmd_call (core, "aaaaa");
     }

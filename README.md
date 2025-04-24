@@ -33,6 +33,9 @@ This will get you a working installation of the radare plugin in a single comman
 
 ### Manual
 
+Make sure to install [creait](https://github.com/revengai/creait) library first.
+It allows the plugin to communicate with RevEngAI servers.
+
 ```sh
 # Get plugin or download a release
 git clone git@github.com:RevEngAI/reai-r2.git && cd reai-r2

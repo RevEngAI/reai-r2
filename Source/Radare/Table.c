@@ -4,27 +4,27 @@
  * @author    : Siddharth Mishra (admin@brightprogrammer.in)
  * @copyright : Copyright (c) 2024 RevEngAI. All Rights Reserved.
  *
- * Table API definitions for Rizin plugin only.
+ * Table API definitions for Radare plugin only.
  * */
 
 /* plugin */
 #include <Plugin.h>
 #include <Table.h>
 
-/* rizin */
+/* radare */
 #include <r_util/r_table.h>
 
 /**
- * Before the next release, this code for `r_table_add_vrowf` won't be present in rizin's
+ * Before the next release, this code for `r_table_add_vrowf` won't be present in radare's
  * source code. So, for now, we use this hack to make the feature work. After the next release,
  * this can be easily removed.
  * */
-#define RIZIN_TABLE_HACK 1
+#define RADARE_TABLE_HACK 1
 
-/* NOTE: The code in this ifdef-endif block is of the same license as rizin.
- * For more reference, read : https://github.com/rizinorg/rizin/blob/dev/librz/util/table.c
+/* NOTE: The code in this ifdef-endif block is of the same license as radare.
+ * For more reference, read : https://github.com/radareorg/radare/blob/dev/libr/util/table.c
  * */
-#ifdef RIZIN_TABLE_HACK
+#ifdef RADARE_TABLE_HACK
 
 #    define add_column_to_rowf(row, fmt, ap)                                                       \
         do {                                                                                       \
@@ -92,12 +92,12 @@ struct ReaiPluginTable {
 };
 
 /**
- * @b Create plugin table for Rizin plugin.
+ * @b Create plugin table for Radare plugin.
  *
  * This will internally create a `RTable` and externally treat it as a new type.
  * This is a hack to avoid defining a new type and allocating memory of it as well as `RTable`.
  *
- * This means that for Rizin plugin, this datatype is always incomplete.
+ * This means that for Radare plugin, this datatype is always incomplete.
  *
  * @return @c ReaiPluginTable on success.
  * @return @c Null otherwise.
@@ -223,7 +223,7 @@ ReaiPluginTable* reai_plugin_table_add_rowf (ReaiPluginTable* table, const char*
 
     va_list ap;
     va_start (ap, fmtstr);
-#ifdef RIZIN_TABLE_HACK
+#ifdef RADARE_TABLE_HACK
     table_add_vrowf (table->table, fmtstr, ap);
 #else
     r_table_add_vrowf (table->table, fmtstr, ap);

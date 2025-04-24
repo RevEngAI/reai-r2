@@ -23,7 +23,7 @@ static void free_args (int argc, char **argv);
 CStrVec *dmsgs[REAI_LOG_LEVEL_MAX];
 
 /**
- * Display a message of given level in rizin shell.
+ * Display a message of given level in radare shell.
  *
  * @param level
  * @param msg
@@ -41,7 +41,7 @@ void reai_plugin_display_msg (ReaiLogLevel level, CString msg) {
         CStrVec *v = dmsgs[x];
         for (size_t l = 0; l < v->count; l++) {
             CString m = v->items[l];
-            reai_log_printf (level, "rizin.display", m);
+            reai_log_printf (level, "radare.display", m);
             r_cons_println (m);
             FREE (v->items[l]);
         }

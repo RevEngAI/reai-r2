@@ -1191,7 +1191,7 @@ Bool reai_plugin_search_and_show_similar_functions (
     CString binary_ids_csv
 ) {
     if (!core) {
-        APPEND_ERROR ("Invalid Rizin core porivded. Cannot perform similarity search.");
+        APPEND_ERROR ("Invalid Radare core porivded. Cannot perform similarity search.");
         return false;
     }
 

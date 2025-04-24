@@ -10,7 +10,6 @@ include(FetchContent)
 find_package(PkgConfig REQUIRED)
 
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
-option(BUILD_RADARE_PLUGIN_ONLY "Whether to build rizin plugin only" ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -92,11 +91,5 @@ execute_process(
 )
 
 message("Radare2 plugin will be installed at ${RADARE_INSTALL_PLUGDIR}")
-
-# TODO:
-# if(NOT BUILD_RADARE_PLUGIN_ONLY)
-#     pkg_check_modules(Iaito REQUIRED) 
-#     set(IAITO_INSTALL_PLUGDIR "${Iaito_USER_PLUGINDIR}" CACHE STRING "Directory to install Iaito plugin into")
-# endif()
 
 add_subdirectory(Source)
