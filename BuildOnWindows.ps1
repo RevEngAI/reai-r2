@@ -221,4 +221,4 @@ Write-Host Build" & INSTALL reai-rz... DONE"
 Write-Host "Installation complete! Enjoy using the plugins ;-)"
 Write-Host "Contact the developers through issues or discussions in https://github.com/revengai/reai-rz"
 
-Write-Host "`rUpdate your environment variable by adding these paths to your `$env:Path : `r$InstallPath;`r$InstallPath\\bin;`r$InstallPath\\lib;"
+Write-Host "`rUpdate your environment variable by adding these paths to your `$env:Path : `n$InstallPath;`n$InstallPath\\bin;`n$InstallPath\\lib;"
