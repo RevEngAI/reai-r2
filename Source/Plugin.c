@@ -15,9 +15,6 @@
 #include <r_types.h>
 
 /* revengai */
-#include <Reai/Api/Response.h>
-#include <Reai/Api/Reai.h>
-#include <Reai/AnalysisInfo.h>
 #include <Reai/Api/Api.h>
 #include <Reai/Common.h>
 #include <Reai/Config.h>

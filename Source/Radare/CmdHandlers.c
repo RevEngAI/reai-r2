@@ -8,15 +8,9 @@
 #include <Radare/CmdHandlers.h>
 #include <Reai/Common.h>
 
-#include <Reai/AnalysisInfo.h>
-#include <Reai/AnnFnMatch.h>
 #include <Reai/Api/Api.h>
-#include <Reai/Api/Reai.h>
-#include <Reai/Api/Request.h>
-#include <Reai/Api/Response.h>
 #include <Reai/Common.h>
 #include <Reai/Config.h>
-#include <Reai/FnInfo.h>
 #include <Reai/Log.h>
 #include <Reai/Types.h>
 
