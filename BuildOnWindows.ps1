@@ -202,7 +202,7 @@ cmake --build "$DepsPath\\creait\\Build" --config Release
 cmake --install "$DepsPath\\creait\\Build" --prefix "$InstallPath" --config Release
 Write-Host Build" & INSTALL creait... DONE"
 
-# Build reai-rz
+# Build reai-r2
 cmake -S "$DepsPath\\reai-r2" -A x64 `
     -B "$DepsPath\\reai-r2\\Build" `
     -G "Visual Studio 17 2022" `
@@ -215,10 +215,10 @@ cmake -S "$DepsPath\\reai-r2" -A x64 `
     -D CMAKE_POLICY_VERSION_MINIMUM="3.5"
 cmake --build "$DepsPath\\reai-r2\\Build" --config Release
 cmake --install "$DepsPath\\reai-r2\\Build" --prefix "$InstallPath" --config Release
-Write-Host Build" & INSTALL reai-rz... DONE"
+Write-Host Build" & INSTALL reai-r2... DONE"
 
 # Set environment variables permanently across machine for all users
 Write-Host "Installation complete! Enjoy using the plugins ;-)"
-Write-Host "Contact the developers through issues or discussions in https://github.com/revengai/reai-rz"
+Write-Host "Contact the developers through issues or discussions in https://github.com/revengai/reai-r2"
 
 Write-Host "`rUpdate your environment variable by adding these paths to your `$env:Path : `n$InstallPath;`n$InstallPath\\bin;`n$InstallPath\\lib;"

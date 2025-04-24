@@ -16,7 +16,7 @@
  *
  * This hack needs to be applied because at the time of writing this, Radare plugin does
  * not have a method to add a new row by taking a format string and a va_list. Due to this,
- * we cannot forward variadic arguments to RzTable API.
+ * we cannot forward variadic arguments to R2Table API.
  * */
 
 #ifndef REAI_PLUGIN_TABLE_H
