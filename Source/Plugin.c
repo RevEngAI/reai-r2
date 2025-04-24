@@ -1466,6 +1466,88 @@ ReaiAiDecompilationStatus reai_plugin_check_decompiler_status_running_at (RCore 
 }
 
 /**
+ * Take a single line of string and split it into multiple lines with each line starting with "//"
+ * making it look like C comment
+ * */
+static char *split_and_comment (char *text) {
+    if (!text)
+        return NULL;
+
+    size_t len          = strlen (text);
+    size_t out_capacity = len * 2; // Allocate generously
+    char  *out          = malloc (out_capacity);
+    if (!out)
+        return NULL;
+
+    size_t out_len  = 0;
+    size_t line_len = 3;
+
+    strcpy (out, "// ");
+    out_len = 3;
+
+    const char *word_start = text;
+
+    while (*word_start) {
+        // Skip leading whitespace
+        while (*word_start && isspace ((unsigned char)*word_start)) {
+            word_start++;
+        }
+
+        if (!*word_start)
+            break;
+
+        // Find end of word
+        const char *word_end = word_start;
+        while (*word_end && !isspace ((unsigned char)*word_end)) {
+            word_end++;
+        }
+
+        size_t word_len = word_end - word_start;
+
+        // New line if this word won't fit
+        if (line_len + (line_len > 3 ? 1 : 0) + word_len > 80) {
+            if (out_len + 3 + 1 >= out_capacity) {
+                out_capacity *= 2;
+                out           = realloc (out, out_capacity);
+                if (!out)
+                    return NULL;
+            }
+            out[out_len++] = '\n';
+            memcpy (out + out_len, "// ", 3);
+            out_len  += 3;
+            line_len  = 3;
+        } else if (line_len > 3) {
+            if (out_len + 1 >= out_capacity) {
+                out_capacity *= 2;
+                out           = realloc (out, out_capacity);
+                if (!out)
+                    return NULL;
+            }
+            out[out_len++] = ' ';
+            line_len++;
+        }
+
+        if (out_len + word_len >= out_capacity) {
+            out_capacity *= 2;
+            out           = realloc (out, out_capacity);
+            if (!out)
+                return NULL;
+        }
+
+        memcpy (out + out_len, word_start, word_len);
+        out_len  += word_len;
+        line_len += word_len;
+
+        word_start = word_end;
+    }
+
+    out[out_len++] = '\n';
+    out[out_len]   = '\0';
+
+    return out;
+}
+
+/**
  * \b If AI decompilation is complete then get the decompiled code.
  *
  * It is recommended to call this function only after decompilation
@@ -1477,7 +1559,7 @@ ReaiAiDecompilationStatus reai_plugin_check_decompiler_status_running_at (RCore 
  * \return AI Decompilation code on success.
  * \return A string containing "(empty)" otherwise.
  * */
-CString reai_plugin_get_decompiled_code_at (RCore *core, ut64 addr) {
+CString reai_plugin_get_decompiled_code_at (RCore *core, ut64 addr, bool summarize) {
     if (!core) {
         APPEND_ERROR ("Invalid arguments");
         return NULL;
@@ -1490,13 +1572,13 @@ CString reai_plugin_get_decompiled_code_at (RCore *core, ut64 addr) {
     }
 
     ReaiAiDecompilationStatus status =
-        reai_poll_ai_decompilation (reai(), reai_response(), fn_id, true /* get summary as well */);
+        reai_poll_ai_decompilation (reai(), reai_response(), fn_id, summarize);
     if (status == REAI_AI_DECOMPILATION_STATUS_SUCCESS) {
         CString decomp = reai_response()->poll_ai_decompilation.data.decompilation;
 
         char *summary = (char *)reai_response()->poll_ai_decompilation.data.summary;
         if (summary) {
-            summary = strdup (summary);
+            summary = split_and_comment (summary);
             summary = r_str_appendf (summary, "\n%s", decomp ? decomp : "(empty)");
 
             decomp = summary;

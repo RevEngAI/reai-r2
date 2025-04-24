@@ -956,7 +956,49 @@ R_IPI RCmdStatus reai_ai_decompile_handler (RCore* core, int argc, const char** 
                 break;
             case REAI_AI_DECOMPILATION_STATUS_SUCCESS : {
                 DISPLAY_INFO ("AI decompilation complete ;-)\n");
-                CString code = reai_plugin_get_decompiled_code_at (core, rfn->addr);
+                char* code = (char*)
+                    reai_plugin_get_decompiled_code_at (core, rfn->addr, true /* summarize */);
+
+
+                // Get function mappings
+                ReaiAiDecompFnMapVec* fn_map =
+                    reai_response()->poll_ai_decompilation.data.function_mapping;
+
+                // Apply function mappings by replacing all <DISASM_FUNCTION_NN> with it's actual function name
+                if (fn_map && code) {
+                    // Search and replace all tagged function names
+                    char fn_tagged_name[64] = {0};
+                    for (Size i = 0; i < fn_map->count; i++) {
+                        ReaiAiDecompFnMap* fn = fn_map->items + i;
+
+                        // Check if function actually does exist
+                        RAnalFunction* afn = r_anal_get_function_byname (core->anal, fn->name);
+                        if (afn) {
+                            // Create name for tagged function name
+                            // I knowingly didn't store these names, because I know these can be generated like this on the fly
+                            snprintf (
+                                fn_tagged_name,
+                                sizeof (fn_tagged_name),
+                                "<DISASM_FUNCTION_%zu>",
+                                i
+                            );
+
+                            // replace tagged names in form of <DISASM_FUNCTION_NN> with actual name
+                            char* tmp = r_str_replace (code, fn_tagged_name, fn->name, true);
+                            if (tmp) {
+                                code = tmp;
+                            }
+                        } else {
+                            REAI_LOG_ERROR (
+                                "Function with %s name does not exist. Provided in function "
+                                "mapping fo AI "
+                                "decomp.",
+                                fn->name
+                            );
+                        }
+                    }
+                }
+
                 if (code) {
                     r_cons_println (code);
                     r_cons_flush();
