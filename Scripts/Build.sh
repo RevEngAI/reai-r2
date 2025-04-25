@@ -15,7 +15,6 @@ cmake -S "/tmp/cjson" \
     -D ENABLE_CUSTOM_COMPILER_FLAGS=OFF \
     -D CMAKE_PREFIX_PATH="$InstallPath" \
     -D CMAKE_INSTALL_PREFIX="$InstallPath" \
-    -D CMAKE_INSTALL_RPATH="$InstallPath/lib" \
     -DCMAKE_POLICY_VERSION_MINIMUM="3.5"
 cmake --build "/tmp/cjson/Build" --config Release
 sudo cmake --install "/tmp/cjson/Build" --prefix "$InstallPath" --config Release
@@ -25,7 +24,6 @@ cmake -S "/tmp/tomlc99" \
     -B "/tmp/tomlc99/Build" \
     -D CMAKE_PREFIX_PATH="$InstallPath" \
     -D CMAKE_INSTALL_PREFIX="$InstallPath" \
-    -D CMAKE_INSTALL_RPATH="$InstallPath/lib" \
     -DCMAKE_POLICY_VERSION_MINIMUM="3.5"
 cmake --build "/tmp/tomlc99/Build" --config Release
 sudo cmake --install "/tmp/tomlc99/Build" --prefix "$InstallPath" --config Release
@@ -35,8 +33,6 @@ cmake -S "/tmp/creait" \
     -B "/tmp/creait/Build" \
     -D CMAKE_PREFIX_PATH="$InstallPath" \
     -D CMAKE_INSTALL_PREFIX="$InstallPath" \
-    -D CMAKE_INSTALL_RPATH="$InstallPath/lib" \
-    -D CMAKE_LIBRARY_PATH="$InstallPath/lib" \
     -D BUILD_SHARED_LIBS=OFF \
     -DCMAKE_POLICY_VERSION_MINIMUM="3.5"
 cmake --build "/tmp/creait/Build" --config Release
@@ -47,8 +43,6 @@ cmake -S "/tmp/reai-r2" \
     -B "/tmp/reai-r2/Build" \
     -D CMAKE_PREFIX_PATH="$InstallPath" \
     -D CMAKE_INSTALL_PREFIX="$InstallPath" \
-    -D CMAKE_INSTALL_RPATH="$InstallPath/lib" \
-    -D CMAKE_LIBRARY_PATH="$InstallPath/lib" \
     -D CMAKE_POLICY_VERSION_MINIMUM="3.5"
 cmake --build "/tmp/reai-r2/Build" --config Release
 sudo cmake --install "/tmp/reai-r2/Build" --prefix "$InstallPath" --config Release
