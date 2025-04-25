@@ -79,3 +79,17 @@ Without a config, the plugin will keep erroring out for all other commands.
 Execute the above command to automatically create a config file similar to the one above.
 You can get the api key in `https://portal.reveng.ai/settings` API Key section. Once
 the config file is generated, exit radare using `q` command and then run radare again.
+
+## Uninstall
+
+Assuming you didn't make any changes to `Build.sh` or `Build.ps1` before install, you can directly
+execute any one of these commands, depending on your operating system.
+
+```bash
+# On Linux/MacOSX
+curl -fsSL https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Uninstall.sh | bash
+
+# On Windows. Execute this from same directory where "Build.ps1" script was executed.
+Set-ExecutionPolicy Bypass -Scope Process -Force; iex (iwr - UseBasicParsing 'https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Uninstall.ps1')
+```
+
