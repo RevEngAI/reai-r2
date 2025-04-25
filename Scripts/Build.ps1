@@ -5,7 +5,7 @@
 # Copyright : Copyright (c) 2025 RevEngAI
 #
 # To execute this script, in a powershell environment run
-# Set-ExecutionPolicy Bypass -Scope Process -Force; iex ".\\BuildOnWindows.ps1"
+# Set-ExecutionPolicy Bypass -Scope Process -Force; iex ".\\Scripts\\Build.ps1"
 #
 # Dependencies
 # - MSVC Compiler Toolchain
