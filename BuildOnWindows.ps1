@@ -208,8 +208,6 @@ cmake -S "$DepsPath\\reai-r2" -A x64 `
     -G "Visual Studio 17 2022" `
     -D CMAKE_PREFIX_PATH="$InstallPath" `
     -D CMAKE_INSTALL_PREFIX="$InstallPath" `
-    -D BUILD_CUTTER_PLUGIN=ON `
-    -D CUTTER_USE_QT6=OFF `
     -D CMAKE_C_FLAGS="/TC" `
     -D CMAKE_CXX_FLAGS="/TC" `
     -D CMAKE_POLICY_VERSION_MINIMUM="3.5"
