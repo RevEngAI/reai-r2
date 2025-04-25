@@ -52,7 +52,7 @@ and then perform the installation.
 curl -fsSL https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Build.sh | bash
 
 # On Windows
-Set-ExecutionPolicy Bypass -Scope Process -Force; iex (iwr - UseBasicParsing 'https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Build.ps1')
+Set-ExecutionPolicy Bypass -Scope Process -Force; iex (iwr -UseBasicParsing 'https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Build.ps1')
 ```
 
 ### Dependencies
@@ -90,6 +90,6 @@ execute any one of these commands, depending on your operating system.
 curl -fsSL https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Uninstall.sh | bash
 
 # On Windows. Execute this from same directory where "Build.ps1" script was executed.
-Set-ExecutionPolicy Bypass -Scope Process -Force; iex (iwr - UseBasicParsing 'https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Uninstall.ps1')
+Set-ExecutionPolicy Bypass -Scope Process -Force; iex (iwr -UseBasicParsing 'https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Uninstall.ps1')
 ```
 
