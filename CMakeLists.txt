@@ -60,10 +60,11 @@ endif()
 #  - https://github.com/avast/retdec/issues/77
 #  - https://cmake.org/Wiki/CMake_RPATH_handling
 if(APPLE)
-        set(CMAKE_INSTALL_RPATH "@executable_path/../lib")
-        list(APPEND CMAKE_MODULE_PATH "/Applications/Iaito.app/Contents/Resources/lib/cmake")
+    list(APPEND CMAKE_INSTALL_RPATH "@executable_path/../lib")
+    list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+    list(APPEND CMAKE_MODULE_PATH "/Applications/Iaito.app/Contents/Resources/lib/cmake")
 elseif(UNIX)
-        set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/../lib")
 endif()
 message(STATUS "CMake module path: ${CMAKE_MODULE_PATH}")
 # --------------------------------------

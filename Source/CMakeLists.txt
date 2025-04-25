@@ -5,8 +5,4 @@
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-find_package(CURL REQUIRED)
-
-set(CREAIT_LIBRARIES ${CURL_LIBRAIRES} CURL::libcurl reai cjson toml)
-
 add_subdirectory(Radare)
