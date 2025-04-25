@@ -1,6 +1,6 @@
 #!/bin/bash
 
-InstallPath="/usr/local"
+InstallPath="~/.local"
 echo "Assuming install path $InstallPath"
 
 # Remove installed headers

@@ -89,8 +89,6 @@ execute any one of these commands, depending on your operating system.
 # On Linux/MacOSX
 curl -fsSL https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Uninstall.sh | bash
 
-# On Windows. Execute this from same directory where "Build.ps1" script was executed.
-# Execute in developer powershell (different from powershell)
+# On Windows. Execute in developer powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force; iex (iwr -UseBasicParsing 'https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Uninstall.ps1')
 ```
-

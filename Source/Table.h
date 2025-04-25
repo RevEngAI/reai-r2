@@ -6,11 +6,7 @@
  *
  * This header defines a uniform interface to create and display tables in
  * Radare. This applies a hack to detect whether the header is being
- * included in Radare or in Cutter.
- *
- * Radare plugin source code is written completely in C and Cutter in C++ and C.
- * This means if the header is compiled by a C compiler, it's being used in Radare,
- * and if it's being compiled by a C++ compiler, it's being used in Cutter.
+ * included in Radare.
  *
  * Using this, we can switch between the API selection.
  *

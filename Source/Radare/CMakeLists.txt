@@ -28,5 +28,5 @@ target_link_libraries(
   reai
 )
 
-# install the built binaries to cutter's plugin directory
+# install the built binaries to radare2's plugin directory
 install(TARGETS reai_radare DESTINATION "${RADARE_INSTALL_PLUGDIR}")

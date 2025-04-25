@@ -616,7 +616,7 @@ Bool reai_plugin_upload_opened_binary_file (RCore *core) {
  * This method first checks whether upload already exists for a given file path.
  * If upload does exist then the existing upload is used.
  *
- * @param core To get currently opened binary file in radare/cutter.
+ * @param core To get currently opened binary file in radare.
  *
  * @return true on success.
  * @return false otherwise.

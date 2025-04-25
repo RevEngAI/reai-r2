@@ -13,10 +13,11 @@
 # Escape backslashes becuase Windows is idiot af
 $CWD = $PWD.Path -replace '\\', '\\'
 
-$BuildDir = "Build\\WindowsBuild"
-$DownPath = "$CWD\\$BuildDir\\Artifacts"
-$DepsPath = "$CWD\\$BuildDir\\Dependencies"
-$InstallPath = "$CWD\\Build\\WindowsInstall"
+$BaseDir = "~\\.local\\RevEngAI\\Radare2"
+$BuildDir = "$BaseDir\\Build"
+$InstallPath = "$BaseDir\\Install"
+$DownPath = "$BuildDir\\Artifacts"
+$DepsPath = "$BuildDir\\Dependencies"
 
 # Remove install directory if already exists to avoid clashes
 if ((Test-Path "$InstallPath")) {
@@ -28,10 +29,11 @@ if ((Test-Path "$BuildDir")) {
     Remove-Item -LiteralPath "$BuildDir" -Force -Recurse
 }
 
+md "$BaseDir"
 md "$BuildDir"
+md "$InstallPath"
 md "$DownPath"
 md "$DepsPath"
-md "$InstallPath"
 
 # Set environment variable for this powershell session
 $env:Path = $env:Path + ";$InstallPath;$InstallPath\\bin;$InstallPath\\lib;$DownPath\\aria2c;$DownPath\\7zip"
@@ -214,6 +216,9 @@ cmake -S "$DepsPath\\reai-r2" -A x64 `
 cmake --build "$DepsPath\\reai-r2\\Build" --config Release
 cmake --install "$DepsPath\\reai-r2\\Build" --prefix "$InstallPath" --config Release
 Write-Host Build" & INSTALL reai-r2... DONE"
+
+# Remove build artifacts
+Remove-Item -Recurse -Force "$BuildDir"
 
 # Set environment variables permanently across machine for all users
 Write-Host "Installation complete! Enjoy using the plugins ;-)"
