@@ -4,6 +4,12 @@ InstallPath="/usr/local"
 echo "Dependencies will be installed at prefix $InstallPath"
 
 cd /tmp
+
+rm -rf /tmp/reai-r2
+rm -rf /tmp/creait
+rm -rf /tmp/tomlc99
+rm -rf /tmp/cJSON
+
 git clone https://github.com/revengai/reai-r2
 git clone https://github.com/revengai/creait
 git clone https://github.com/brightprogrammer/tomlc99
