@@ -51,7 +51,7 @@ and then perform the installation.
 # On Linux/MacOSX
 curl -fsSL https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Build.sh | bash
 
-# On Windows
+# On Windows, from developer powershell (requires MSVC build tools)
 Set-ExecutionPolicy Bypass -Scope Process -Force; iex (iwr -UseBasicParsing 'https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Build.ps1')
 ```
 
@@ -90,6 +90,7 @@ execute any one of these commands, depending on your operating system.
 curl -fsSL https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Uninstall.sh | bash
 
 # On Windows. Execute this from same directory where "Build.ps1" script was executed.
+# Execute in developer powershell (different from powershell)
 Set-ExecutionPolicy Bypass -Scope Process -Force; iex (iwr -UseBasicParsing 'https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Uninstall.ps1')
 ```
 
