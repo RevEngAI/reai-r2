@@ -43,23 +43,21 @@ This will get you a working installation of the radare plugin in a single comman
 
 ### Manual
 
-Make sure to install [creait](https://github.com/revengai/creait) library first.
-It allows the plugin to communicate with RevEngAI servers.
+The build scripts assume default settings that'll work for most users. For advanced users,
+who wish to change the intallation process, they may fetch the script and make modifications
+and then perform the installation.
 
-```sh
-# Get plugin or download a release
-git clone git@github.com:RevEngAI/reai-r2.git && cd reai-r2
+```bash
+# On Linux/MacOSX
+curl -fsSL https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Build.sh | bash
 
-# Configure the build. Remove -G Ninja if you prefer GNU Makefiles (requires make)
-cmake -B Build -G Ninja
-
-# Build & Install plugin
-ninja -C Build && sudo ninja -C Build install
+# On Windows
+Set-ExecutionPolicy Bypass -Scope Process -Force; iex (iwr - UseBasicParsing 'https://raw.githubusercontent.com/RevEngAI/reai-r2/refs/heads/master/Scripts/Build.ps1')
 ```
 
 ### Dependencies
 
-Before running any of the above commands, you must install cmake, make, ninja, meson, gcc/g++ (if required), pkg-config, libcurl (development package), and [radare](https://github.com/radareorg/radare2).
+Before running any of the above commands, you must install cmake, make, ninja, meson, gcc/g++, pkg-config, libcurl (development package), and [radare](https://github.com/radareorg/radare2).
 
 ## Basic Usage
 
