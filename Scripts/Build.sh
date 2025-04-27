@@ -1,6 +1,6 @@
 #!/bin/bash
 
-InstallPath="~/.local"
+InstallPath="$HOME/.local"
 echo "Dependencies will be installed at prefix $InstallPath"
 
 cd /tmp
