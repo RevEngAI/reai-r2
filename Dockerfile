@@ -38,6 +38,28 @@ WORKDIR /home/revengai
 # Download, build and install radare.
 RUN git clone https://github.com/radareorg/radare2 && radare2/sys/install.sh
 
+# Build and install cJSON dependency
+RUN git clone https://github.com/DaveGamble/cJSON.git
+RUN cmake -S /home/revengai/cJSON \
+    -B /home/revengai/cJSON/build \
+    -G Ninja \
+    -D CMAKE_INSTALL_PREFIX=/usr/local \
+    -D BUILD_SHARED_LIBS=ON \
+    -DCMAKE_POLICY_VERSION_MINIMUM="3.5"
+RUN ninja -C /home/revengai/cJSON/build
+RUN sudo ninja -C /home/revengai/cJSON/build install
+
+# Build and install tomlc99 dependency
+RUN git clone https://github.com/brightprogrammer/tomlc99
+RUN cmake -S /home/revengai/tomlc99 \
+    -B /home/revengai/tomlc99/build \
+    -G Ninja \
+    -D CMAKE_INSTALL_PREFIX=/usr/local \
+    -D BUILD_SHARED_LIBS=ON \
+    -DCMAKE_POLICY_VERSION_MINIMUM="3.5"
+RUN ninja -C /home/revengai/tomlc99/build
+RUN sudo ninja -C /home/revengai/tomlc99/build install
+
 # Copy plugin code from host 
 RUN mkdir reai-r2
 COPY . reai-r2/
