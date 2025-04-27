@@ -800,9 +800,8 @@ R_IPI RCmdStatus reai_binary_cmd_group_help_handler (RCore* core, int argc, cons
     }
 
     DISPLAY_INFO (
-        "Usage: REb<ls>   # RevEngAI commands for interacting with binaries\n"
-        "| REbl <binary_id> # Provide link to show more binary information on RevEngAI portal\n"
-        "| REbs[nh]         # Commands for performing binary search in RevEngAI\n"
+        "Usage: REb<s>   # RevEngAI commands for interacting with binaries\n"
+        "| REbs[nh]      # Commands for performing binary search in RevEngAI\n"
     );
 
     return R_CMD_STATUS_OK;
