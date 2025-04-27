@@ -6,6 +6,7 @@
  * */
 
 #include <Radare/CmdHandlers.h>
+#include <Reai/Api/Reai.h>
 #include <Reai/Common.h>
 
 #include <Reai/Api/Api.h>
@@ -339,7 +340,7 @@ R_IPI RCmdStatus reai_get_recent_analyses_handler (RCore* core, int argc, const 
         reai(),
         reai_response(),
         NULL /* search term */,
-        REAI_WORKSPACE_PUBLIC,
+        REAI_WORKSPACE_PERSONAL,
         REAI_ANALYSIS_STATUS_ALL,
         NULL, /* model name */
         REAI_DYN_EXEC_STATUS_ALL,
