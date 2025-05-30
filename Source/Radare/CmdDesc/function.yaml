@@ -1,0 +1,85 @@
+group: REf
+commands:
+  - name: REfo
+    cname: function_link
+    summary: Open function in RevEngAI portal
+    args:
+      - name: function_id
+        type: ARG_TYPE_NUMBER
+        optional: false
+    
+  - name: REfl
+    cname: get_basic_function_info
+    summary: List functions from current analysis
+    args: []
+    
+  - name: REfr
+    cname: rename_function
+    summary: Rename function
+    args:
+      - name: old_function_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: new_function_name
+        type: ARG_TYPE_STRING
+        optional: false
+    details:
+      - name: Examples
+        entries:
+          - text: REfr main new_main
+            comment: "Rename function 'main' to 'new_main'"
+    
+  - name: REfs
+    cname: function_similarity_search
+    summary: Search similar functions
+    args:
+      - name: function_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: min_similarity
+        type: ARG_TYPE_NUMBER
+        optional: false
+      - name: limit
+        type: ARG_TYPE_NUMBER
+        optional: false
+      - name: collection_ids
+        type: ARG_TYPE_STRING
+        optional: true
+      - name: binary_ids
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Examples
+        entries:
+          - text: REfs main 90 20
+            comment: "Find up to 20 functions similar to 'main' with at least 90% similarity"
+          - text: REfs parse_header 85 10 "12345,67890" "1111,2222"
+            comment: "Search in specific collections and binaries"
+    
+  - name: REfsd
+    cname: function_similarity_search_restrict_debug
+    summary: Search similar functions (debug symbols only)
+    args:
+      - name: function_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: min_similarity
+        type: ARG_TYPE_NUMBER
+        optional: false
+      - name: limit
+        type: ARG_TYPE_NUMBER
+        optional: false
+      - name: collection_ids
+        type: ARG_TYPE_STRING
+        optional: true
+      - name: binary_ids
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Only matches against functions with debug symbols"
+      - name: Examples
+        entries:
+          - text: REfsd main 90 20
+            comment: "Find up to 20 functions similar to 'main' with at least 90% similarity (debug symbols only)" 

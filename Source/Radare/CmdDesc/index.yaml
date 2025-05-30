@@ -1,0 +1,108 @@
+group: RE
+# Basic commands at root level
+commands:
+  - name: REi
+    cname: plugin_initialize
+    summary: Initialize plugin config with API key
+    args:
+      - name: api_key
+        type: ARG_TYPE_STRING
+        optional: false
+    details:
+      - name: Notes
+        entries:
+          - text: "API key format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+      - name: Examples
+        entries:
+          - text: REi 12345678-1234-1234-1234-1234567890ab
+            comment: "Initialize the plugin with the given API key"
+    
+  - name: REm
+    cname: list_available_ai_models
+    summary: List all available AI models for RevEngAI analysis
+    args: []
+    
+  - name: REh
+    cname: health_check
+    summary: Check connection status with RevEngAI servers
+    args: []
+    
+  - name: REu
+    cname: upload_bin
+    summary: Upload binary to RevEngAI servers
+    args:
+      - name: file_path
+        type: ARG_TYPE_STRING
+        optional: false
+    details:
+      - name: Examples
+        entries:
+          - text: REu /path/to/binary.exe
+            comment: "Upload a binary file to RevEngAI servers"
+    
+  - name: REd
+    cname: ai_decompile
+    summary: Decompile function using RevEngAI's AI Decompiler
+    args:
+      - name: function_name
+        type: ARG_TYPE_STRING
+        optional: false
+    details:
+      - name: Examples
+        entries:
+          - text: REd main
+            comment: "Decompile the 'main' function"
+    
+  - name: REart
+    cname: show_revengai_art
+    summary: Show RevEng.AI ASCII art
+    args: []
+    
+  # Command groups as commands
+  - name: REa
+    cname: analysis_cmd_group_help
+    summary: Commands for working with RevEngAI analyses
+    args: []
+    details:
+      - name: Group Commands
+        entries:
+          - text: "For detailed help on this command group, use: REa?"
+      - name: File
+        entries:
+          - text: analysis.yaml
+    
+  - name: REf
+    cname: function_cmd_group_help
+    summary: Commands for working with and searching functions
+    args: []
+    details:
+      - name: Group Commands
+        entries:
+          - text: "For detailed help on this command group, use: REf?"
+      - name: File
+        entries:
+          - text: function.yaml
+    
+  - name: REb
+    cname: binary_cmd_group_help
+    summary: Commands for searching and working with binaries
+    args: []
+    details:
+      - name: Group Commands
+        entries:
+          - text: "For detailed help on this command group, use: REb?"
+      - name: File
+        entries:
+          - text: binary.yaml
+    
+  - name: REc
+    cname: collection_cmd_group_help
+    summary: Commands for working with RevEngAI collections
+    args: []
+    details:
+      - name: Group Commands
+        entries:
+          - text: "For detailed help on this command group, use: REc?"
+      - name: File
+        entries:
+          - text: collection.yaml 

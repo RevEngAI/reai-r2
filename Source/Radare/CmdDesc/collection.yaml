@@ -1,0 +1,235 @@
+group: REc
+commands:
+  - name: REco
+    cname: collection_link
+    summary: Open collection in RevEngAI portal
+    args:
+      - name: collection_id
+        type: ARG_TYPE_NUMBER
+        optional: false
+    
+  - name: REcs
+    cname: collection_search
+    summary: Search collections with multiple filters
+    args:
+      - name: collection_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: binary_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: hash
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: model
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: tags
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Examples
+        entries:
+          - text: REcs "Standard Library" "libc" "a4b3c" binnet-0.5-x86-linux
+            comment: "Search for collections with multiple filters"
+    
+  - name: REcsc
+    cname: collection_search_by_collection_name
+    summary: Search collections by collection name
+    args:
+      - name: collection_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: model
+        type: ARG_TYPE_STRING
+        optional: false
+    
+  - name: REcsb
+    cname: collection_search_by_binary_name
+    summary: Search collections by binary name
+    args:
+      - name: binary_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: model
+        type: ARG_TYPE_STRING
+        optional: false
+    
+  - name: REcsh
+    cname: collection_search_by_binary_sha256
+    summary: Search collections by binary SHA256
+    args:
+      - name: sha256
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: model
+        type: ARG_TYPE_STRING
+        optional: false
+    
+  - name: REca
+    cname: collection_basic_info_asc_cmd_group_help
+    summary: Sort collections ascending commands group
+    args: []
+    details:
+      - name: Group Commands
+        entries:
+          - text: "For detailed help on this command group, use: REca?"
+    
+  - name: REcat
+    cname: collection_basic_info_asc_time
+    summary: Sort collections by time (ascending)
+    args:
+      - name: term
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: filters
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Filters: p=public, o=official, u=user, t=team"
+    
+  - name: REcao
+    cname: collection_basic_info_asc_owner
+    summary: Sort collections by owner (ascending)
+    args:
+      - name: term
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: filters
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Filters: p=public, o=official, u=user, t=team"
+    
+  - name: REcan
+    cname: collection_basic_info_asc_name
+    summary: Sort collections by name (ascending)
+    args:
+      - name: term
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: filters
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Filters: p=public, o=official, u=user, t=team"
+    
+  - name: REcam
+    cname: collection_basic_info_asc_model
+    summary: Sort collections by model (ascending)
+    args:
+      - name: term
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: filters
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Filters: p=public, o=official, u=user, t=team"
+    
+  - name: REcas
+    cname: collection_basic_info_asc_size
+    summary: Sort collections by size (ascending)
+    args:
+      - name: term
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: filters
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Filters: p=public, o=official, u=user, t=team"
+    
+  - name: REcd
+    cname: collection_basic_info_desc_cmd_group_help
+    summary: Sort collections descending commands group
+    args: []
+    details:
+      - name: Group Commands
+        entries:
+          - text: "For detailed help on this command group, use: REcd?"
+    
+  - name: REcdt
+    cname: collection_basic_info_desc_time
+    summary: Sort collections by time (descending)
+    args:
+      - name: term
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: filters
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Filters: p=public, o=official, u=user, t=team"
+    
+  - name: REcdo
+    cname: collection_basic_info_desc_owner
+    summary: Sort collections by owner (descending)
+    args:
+      - name: term
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: filters
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Filters: p=public, o=official, u=user, t=team"
+    
+  - name: REcdn
+    cname: collection_basic_info_desc_name
+    summary: Sort collections by name (descending)
+    args:
+      - name: term
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: filters
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Filters: p=public, o=official, u=user, t=team"
+    
+  - name: REcdm
+    cname: collection_basic_info_desc_model
+    summary: Sort collections by model (descending)
+    args:
+      - name: term
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: filters
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Filters: p=public, o=official, u=user, t=team"
+    
+  - name: REcds
+    cname: collection_basic_info_desc_size
+    summary: Sort collections by size (descending)
+    args:
+      - name: term
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: filters
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "Filters: p=public, o=official, u=user, t=team" 

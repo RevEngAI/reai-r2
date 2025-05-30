@@ -1,0 +1,109 @@
+group: REa
+commands:
+  - name: REa
+    cname: create_analysis_public
+    summary: Create a PUBLIC RevEngAI analysis for currently opened binary
+    args:
+      - name: ai_model
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: prog_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: cmd_line_args
+        type: ARG_TYPE_STRING
+        optional: true 
+    details:
+      - name: Examples
+        entries:
+          - text: REa binnet-0.5-x86-linux ffmpeg "-i input.mp4 -c:v gif output.gif"
+            comment: "Create analysis for ffmpeg program with given command line arguments."
+          - text: REa binnet-0.5-x86-linux NFSMostWantedTrainer.exe
+            comment: "Without any command line arguments."
+            
+  - name: REap
+    cname: create_analysis_private
+    summary: Create a PRIVATE RevEngAI analysis for currently opened binary
+    args:
+      - name: ai_model
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: prog_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: cmd_line_args
+        type: ARG_TYPE_STRING
+        optional: true 
+    details:
+      - name: Examples
+        entries:
+          - text: REap binnet-0.5-x86-linux ffmpeg "-i input.mp4 -c:v gif output.gif"
+            comment: "Create analysis for ffmpeg program with given command line arguments."
+          - text: REap binnet-0.5-x86-linux NFSMostWantedTrainer.exe
+            comment: "Without any command line arguments."
+            
+  - name: REar
+    cname: get_recent_analyses
+    summary: Get most recent analyses
+    args: []
+    
+  - name: REao
+    cname: analysis_link
+    summary: Open analysis link in RevEngAI portal
+    args:
+      - name: binary_id
+        type: ARG_TYPE_NUMBER
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "If binary_id is not provided, uses the currently attached analysis"
+            
+  - name: REal
+    cname: get_analysis_logs_using_analysis_id
+    summary: Get analysis logs using analysis ID
+    args:
+      - name: analysis_id
+        type: ARG_TYPE_NUMBER
+        optional: false
+        
+  - name: REalb
+    cname: get_analysis_logs_using_binary_id
+    summary: Get analysis logs using binary ID
+    args:
+      - name: binary_id
+        type: ARG_TYPE_NUMBER
+        optional: true
+    details:
+      - name: Notes
+        entries:
+          - text: "If binary_id is not provided, uses the currently attached analysis"
+            
+  - name: REau
+    cname: ann_auto_analyze
+    summary: Auto analyze binary functions using ANN and perform batch rename
+    args:
+      - name: min_similarity
+        type: ARG_TYPE_NUMBER
+        optional: true
+        default: 90
+        
+  - name: REaud
+    cname: ann_auto_analyze_restrict_debug
+    summary: Auto analyze with debug symbols only
+    args:
+      - name: min_similarity
+        type: ARG_TYPE_NUMBER
+        optional: true
+        default: 90
+        
+  - name: REae
+    cname: apply_existing_analysis
+    summary: Apply existing RevEng.AI analysis to this binary
+    args:
+      - name: binary_id
+        type: ARG_TYPE_NUMBER
+        optional: false
+      - name: base_addr
+        type: ARG_TYPE_NUMBER
+        optional: true 

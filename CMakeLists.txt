@@ -8,6 +8,8 @@ project(reai-r2 VERSION 0 LANGUAGES C CXX)
 
 include(FetchContent)
 find_package(PkgConfig REQUIRED)
+find_package(Python3 REQUIRED)
+set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
 

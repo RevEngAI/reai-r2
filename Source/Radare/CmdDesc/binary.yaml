@@ -1,0 +1,57 @@
+group: REb
+commands:
+  - name: REbs
+    cname: binary_search
+    summary: Search binaries with multiple filters
+    args:
+      - name: name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: sha256
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: model
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: tags
+        type: ARG_TYPE_STRING
+        optional: true
+    details:
+      - name: Examples
+        entries:
+          - text: REbs firefox "c4e4a" binnet-0.5-x86-linux
+            comment: "Search for Firefox binaries with SHA256 starting with c4e4a"
+          - text: REbs notepad "af5b3" binnet-0.5-x86-win "windows,utility"
+            comment: "Search with tags specified"
+    
+  - name: REbsn
+    cname: binary_search_by_name
+    summary: Search binaries by name
+    args:
+      - name: name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: model
+        type: ARG_TYPE_STRING
+        optional: false
+    details:
+      - name: Examples
+        entries:
+          - text: REbsn chrome binnet-0.5-x86-win
+            comment: "Search for Chrome binaries"
+    
+  - name: REbsh
+    cname: binary_search_by_sha256
+    summary: Search binaries by SHA256 hash
+    args:
+      - name: sha256
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: model
+        type: ARG_TYPE_STRING
+        optional: false
+    details:
+      - name: Examples
+        entries:
+          - text: REbsh "5e4d2a1fb7c" binnet-0.5-x86-linux
+            comment: "Search for binaries with SHA256 starting with 5e4d2a1fb7c" 
