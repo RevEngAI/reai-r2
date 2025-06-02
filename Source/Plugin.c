@@ -283,7 +283,7 @@ void rAutoRenameFunctions (
                 LOG_ERROR (
                     "Failed to get a function ID for function with name = '%s' at address = 0x%llx",
                     fn->name,
-                    fn->addr
+                    (u64)fn->addr
                 );
                 continue;
             }

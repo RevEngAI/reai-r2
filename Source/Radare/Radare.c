@@ -90,7 +90,7 @@ int reai_r2_core_cmd (void *user, const char *input) {
     RCmdStatus status = reai_global_command_dispatcher(core, input);
     
     // Always return true for our commands, even if they fail
-    return true;
+    return status == R_CMD_STATUS_OK;
 }
 
 RCorePlugin r_core_plugin_reai = {
