@@ -1,0 +1,220 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag name'
+        required: true
+        default: 'v0.1.0'
+      prerelease:
+        description: 'Mark as prerelease'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Download Linux artifacts
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build-linux.yml
+        name: reai-r2-linux-binaries
+        path: release-artifacts/linux/
+        if_no_artifact_found: warn
+        
+    - name: Download macOS artifacts
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build-macos.yml
+        name: reai-r2-macos-binaries
+        path: release-artifacts/macos/
+        if_no_artifact_found: warn
+        
+    - name: Download Windows artifacts
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build-windows.yml
+        name: reai-r2-windows-binaries
+        path: release-artifacts/windows/
+        if_no_artifact_found: warn
+        
+    - name: Create release packages
+      run: |
+        cd release-artifacts/
+        
+        # List what we downloaded
+        echo "Downloaded artifacts:"
+        find . -type f | sort
+        
+        # Create platform-specific packages
+        if [ -d "linux" ]; then
+          echo "Creating Linux package..."
+          tar -czf "reai-r2-linux.tar.gz" -C linux .
+          echo "✅ Created reai-r2-linux.tar.gz"
+        fi
+        
+        if [ -d "macos" ]; then
+          echo "Creating macOS package..."
+          tar -czf "reai-r2-macos.tar.gz" -C macos .
+          echo "✅ Created reai-r2-macos.tar.gz"
+        fi
+        
+        if [ -d "windows" ]; then
+          echo "Creating Windows package..."
+          cd windows && zip -r "../reai-r2-windows.zip" . && cd ..
+          echo "✅ Created reai-r2-windows.zip"
+        fi
+        
+        # List final packages
+        echo "Created release packages:"
+        ls -la *.tar.gz *.zip 2>/dev/null || echo "No packages were created"
+        
+    - name: Get tag name
+      id: tag_name
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "tag_name=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          echo "prerelease=${{ github.event.inputs.prerelease }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "prerelease=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.tag_name.outputs.tag_name }}
+        name: RevEngAI Radare2 Plugin ${{ steps.tag_name.outputs.tag_name }}
+        draft: false
+        prerelease: ${{ steps.tag_name.outputs.prerelease }}
+        generate_release_notes: true
+        files: |
+          release-artifacts/*.tar.gz
+          release-artifacts/*.zip
+        body: |
+          ## RevEngAI Radare2 Plugin Release ${{ steps.tag_name.outputs.tag_name }}
+          
+          This release contains the RevEngAI plugin and runtime libraries for Radare2.
+          
+          ### 📦 Downloads
+          
+          | Platform | Download | Contents |
+          |----------|----------|----------|
+          | 🐧 **Linux** | `reai-r2-linux.tar.gz` | Plugin + Runtime Libraries |
+          | 🍎 **macOS** | `reai-r2-macos.tar.gz` | Plugin + Runtime Libraries |
+          | 🪟 **Windows** | `reai-r2-windows.zip` | Plugin + Runtime Libraries + curl |
+          
+          ### 📋 What's Included
+          
+          **All Platforms:**
+          - 🔌 `reai_radare` plugin (.so/.dylib/.dll)
+          - 📚 `libreai`/`reai` runtime library
+          
+          **Windows Additional:**
+          - 🌐 libcurl runtime library
+          - 📄 Import libraries (.lib files) for development
+          
+          ### 🚀 Installation
+          
+          #### 🚀 Quick Install (One-line commands)
+          
+          **Linux:**
+          ```bash
+          curl -sL $(curl -s https://api.github.com/repos/RevEngAI/reai-r2/releases/latest | grep -o 'https://.*reai-r2-linux.tar.gz') | tar -xz && cp reai_radare.* $(radare2 -H R2_USER_PLUGINS) && sudo cp *.so /usr/local/lib/ && sudo ldconfig
+          ```
+          
+          **macOS:**
+          ```bash
+          curl -sL $(curl -s https://api.github.com/repos/RevEngAI/reai-r2/releases/latest | grep -o 'https://.*reai-r2-macos.tar.gz') | tar -xz && cp reai_radare.* $(radare2 -H R2_USER_PLUGINS) && sudo cp *.dylib /usr/local/lib/
+          ```
+          
+          **Windows (PowerShell):**
+          ```powershell
+          $url = (Invoke-RestMethod "https://api.github.com/repos/RevEngAI/reai-r2/releases/latest").assets | Where-Object {$_.name -like "*windows.zip"} | Select-Object -ExpandProperty browser_download_url; Invoke-WebRequest $url -OutFile "reai-r2.zip"; Expand-Archive "reai-r2.zip" -Force; $pluginDir = & radare2 -H R2_USER_PLUGINS; if (-not (Test-Path $pluginDir)) { New-Item -ItemType Directory -Path $pluginDir }; Copy-Item "reai-r2\*.dll" $pluginDir; Remove-Item "reai-r2.zip", "reai-r2" -Recurse -Force
+          ```
+          
+          ---
+          
+          #### 📋 Manual Installation
+          
+          #### Linux/macOS
+          ```bash
+          # Extract the package
+          tar -xzf reai-r2-<platform>.tar.gz
+          
+          # Install plugin
+          cp reai_radare.* $(radare2 -H R2_USER_PLUGINS)
+          
+          # Install libraries to system (optional, if not found automatically)
+          sudo cp libreai.* /usr/local/lib/
+          sudo ldconfig  # Linux only
+          ```
+          
+          #### Windows
+          
+          **⚠️ Important:** On Windows, ALL DLL files must be placed in the radare2 plugins directory to ensure proper loading.
+          
+          ```cmd
+          # Extract the zip file to a temporary location
+          # 
+          # Get the radare2 plugins directory path:
+          radare2 -H R2_USER_PLUGINS
+          # This will show something like: C:\Users\YourName\AppData\Local\radare2\plugins
+          
+          # Method 1: Copy ALL DLL files to plugins directory (RECOMMENDED)
+          copy *.dll "%APPDATA%\radare2\plugins\"
+          
+          # Method 2: If the above path doesn't work, create it manually:
+          mkdir "%APPDATA%\radare2\plugins" 2>nul
+          copy *.dll "%APPDATA%\radare2\plugins\"
+          
+          # Method 3: For portable radare2 installations:
+          # copy *.dll "C:\path\to\your\radare2\plugins\"
+          ```
+          
+          **Files that must be installed:**
+          - `reai_radare.dll` (the plugin)
+          - `reai.dll` (RevEngAI library)
+          - `libcurl.dll` (HTTP client library)
+          - Other DLL dependencies (if any)
+          
+          **Optional for developers:**
+          - `.lib` files can be placed anywhere in your development environment for linking
+          
+          ### ✅ Verification
+          
+          After installation, verify the plugin is loaded:
+          ```bash
+          r2 -
+          [0x00000000]> REh
+          # Should display RevEngAI plugin help
+          ```
+          
+          ### 📝 Configuration
+          
+          Create a configuration file at `~/.creait`:
+          ```toml
+          api_key = YOUR_REVENGAI_API_KEY
+          host = https://api.reveng.ai
+          ```
+          
+          ### 🔧 Requirements
+          
+          - **Radare2 5.9.8** or compatible version
+          - **Internet connection** for RevEngAI API access
+          - **Valid RevEngAI API key** from https://portal.reveng.ai
+          
+          ### 🐛 Issues & Support
+          
+          Report issues at: https://github.com/RevEngAI/reai-r2/issues
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
