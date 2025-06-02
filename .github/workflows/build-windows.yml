@@ -23,27 +23,20 @@ jobs:
       with:
         arch: x64
         
-    - name: Install Python dependencies
+    - name: Build project with Python venv
       run: |
+        # Create and activate virtual environment
+        python -m venv .venv
+        .\.venv\Scripts\Activate.ps1
+        
+        # Install Python dependencies
         python -m pip install --upgrade pip
         python -m pip install pyyaml
-        # Ensure Python and pip are in PATH for the build script
-        $pythonPath = (Get-Command python).Source | Split-Path
-        $env:PATH = "$pythonPath;$env:PATH"
-        echo "Python path: $pythonPath"
-        echo "PyYAML installed location:"
-        python -c "import yaml; print(yaml.__file__)"
-      shell: powershell
-      
-    - name: Build project
-      run: |
-        # Ensure Python environment is available
-        $pythonPath = (Get-Command python).Source | Split-Path
-        $env:PATH = "$pythonPath;$env:PATH"
         
         # Verify PyYAML is available
-        python -c "import yaml; print('PyYAML is available')"
+        python -c "import yaml; print('PyYAML is available in venv')"
         
+        # Run the build script
         Set-ExecutionPolicy Bypass -Scope Process -Force
         .\Scripts\Build.ps1
       shell: powershell
