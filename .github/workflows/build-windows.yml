@@ -27,9 +27,23 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python -m pip install pyyaml
-        
+        # Ensure Python and pip are in PATH for the build script
+        $pythonPath = (Get-Command python).Source | Split-Path
+        $env:PATH = "$pythonPath;$env:PATH"
+        echo "Python path: $pythonPath"
+        echo "PyYAML installed location:"
+        python -c "import yaml; print(yaml.__file__)"
+      shell: powershell
+      
     - name: Build project
       run: |
+        # Ensure Python environment is available
+        $pythonPath = (Get-Command python).Source | Split-Path
+        $env:PATH = "$pythonPath;$env:PATH"
+        
+        # Verify PyYAML is available
+        python -c "import yaml; print('PyYAML is available')"
+        
         Set-ExecutionPolicy Bypass -Scope Process -Force
         .\Scripts\Build.ps1
       shell: powershell

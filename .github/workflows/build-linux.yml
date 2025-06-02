@@ -33,9 +33,17 @@ jobs:
           
     - name: Install radare2
       run: |
-        wget -qO- https://github.com/radareorg/radare2/releases/download/5.9.8/radare2-dev_5.9.8_amd64.deb -O /tmp/radare2.deb
+        # Install both runtime and development packages
+        wget -qO- https://github.com/radareorg/radare2/releases/download/5.9.8/radare2_5.9.8_amd64.deb -O /tmp/radare2.deb
+        wget -qO- https://github.com/radareorg/radare2/releases/download/5.9.8/radare2-dev_5.9.8_amd64.deb -O /tmp/radare2-dev.deb
+        
+        # Install runtime package first, then dev package
         sudo dpkg -i /tmp/radare2.deb || sudo apt-get install -f -y
+        sudo dpkg -i /tmp/radare2-dev.deb || sudo apt-get install -f -y
+        
+        # Verify installation
         radare2 -v
+        pkg-config --cflags r_core
         
     - name: Install Python dependencies
       run: |
