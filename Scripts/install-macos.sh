@@ -26,7 +26,7 @@ mkdir -p "$USER_LIB_DIR"
 # Expected files for macOS (exact files from CI)
 EXPECTED_FILES=(
     "libreai.dylib"
-    "libreai_radare.so"
+    "libreai_radare.dylib"
 )
 
 # Check if all expected files exist
@@ -57,7 +57,7 @@ fi
 
 # Find and install Radare2 plugin
 echo "=== Installing Radare2 plugin ==="
-RADARE_PLUGIN="$ARTIFACT_DIR/libreai_radare.so"
+RADARE_PLUGIN="$ARTIFACT_DIR/libreai_radare.dylib"
 if [ -f "$RADARE_PLUGIN" ]; then
     # Get radare2 plugin directory
     RADARE_PLUGIN_DIR=$(radare2 -H R2_USER_PLUGINS 2>/dev/null) || {
@@ -67,13 +67,13 @@ if [ -f "$RADARE_PLUGIN" ]; then
     
     mkdir -p "$RADARE_PLUGIN_DIR"
     
-    echo "Installing Radare2 plugin: libreai_radare.so -> $RADARE_PLUGIN_DIR/"
+    echo "Installing Radare2 plugin: libreai_radare.dylib -> $RADARE_PLUGIN_DIR/"
     cp "$RADARE_PLUGIN" "$RADARE_PLUGIN_DIR/"
-    chmod 755 "$RADARE_PLUGIN_DIR/libreai_radare.so"
+    chmod 755 "$RADARE_PLUGIN_DIR/libreai_radare.dylib"
     
     # Fix rpath for Radare2 plugin
     echo "Fixing rpath for Radare2 plugin..."
-    RADARE_INSTALLED_PLUGIN="$RADARE_PLUGIN_DIR/libreai_radare.so"
+    RADARE_INSTALLED_PLUGIN="$RADARE_PLUGIN_DIR/libreai_radare.dylib"
     
     # Clear existing rpaths
     install_name_tool -delete_rpath "/Users/runner/.local/lib" "$RADARE_INSTALLED_PLUGIN" 2>/dev/null || true
@@ -86,7 +86,7 @@ if [ -f "$RADARE_PLUGIN" ]; then
     
     echo "✅ Radare2 plugin installed and rpath fixed"
 else
-    echo "❌ Error: libreai_radare.so not found in artifacts"
+    echo "❌ Error: libreai_radare.dylib not found in artifacts"
     exit 1
 fi
 
@@ -119,7 +119,7 @@ echo "📋 Summary:"
 echo "  • Shared libraries installed to: $USER_LIB_DIR"
 echo "    - libreai.dylib"
 echo "  • Radare2 plugin installed to: $RADARE_PLUGIN_DIR"
-echo "    - libreai_radare.so"
+echo "    - libreai_radare.dylib"
 echo "  • Environment script created: $ENV_SCRIPT"
 echo ""
 echo "🚀 To use the plugins:"

@@ -58,33 +58,34 @@ jobs:
         source .venv/bin/activate
         bash Scripts/Build.sh
         
-    - name: Collect runtime binaries
+    - name: Collect runtime binaries and installer
       run: |
-        mkdir -p artifacts
+        mkdir -p upload-staging
         
         # Show what was built
         echo "=== Contents of $HOME/.local ==="
         find $HOME/.local -type f | head -20
         
-        # Collect only shared libraries (.so files)
-        find $HOME/.local/lib -name "*.so*" -exec cp {} artifacts/ \; 2>/dev/null || true
+        # Collect only shared libraries (.so files) directly to staging
+        find $HOME/.local/lib -name "*.so*" -exec cp {} upload-staging/ \; 2>/dev/null || true
         
-        # Collect radare2 plugin
+        # Collect radare2 plugin directly to staging
         PLUGIN_DIR=$(radare2 -H R2_USER_PLUGINS 2>/dev/null) || PLUGIN_DIR=""
         if [ -n "$PLUGIN_DIR" ] && [ -d "$PLUGIN_DIR" ]; then
-          find "$PLUGIN_DIR" -name "*reai*" -exec cp {} artifacts/ \; 2>/dev/null || true
+          find "$PLUGIN_DIR" -name "*reai*" -exec cp {} upload-staging/ \; 2>/dev/null || true
         fi
         
+        # Copy installer and README directly to staging (no Scripts/ subdirectory)
+        cp Scripts/install-linux.sh upload-staging/
+        cp Scripts/README.md upload-staging/
+        
         # Show what we collected
-        echo "=== Collected Runtime Binaries ==="
-        find artifacts -type f | sort
+        echo "=== Final Package Contents ==="
+        find upload-staging -type f | sort
         
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: reai-r2-linux-binaries
-        path: |
-          artifacts/
-          Scripts/install-linux.sh
-          Scripts/README.md
+        path: upload-staging/
         if-no-files-found: warn 
