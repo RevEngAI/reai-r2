@@ -24,20 +24,25 @@ add_custom_target(generate_cmd_desc
 # main plugin library and sources
 set(ReaiR2PluginSources "Radare.c" "CmdHandlers.c" "../Plugin.c" "CmdDesc.c")
 
-# Libraries needs to be searched here to be linked properly
-find_package(CURL REQUIRED)
+find_package(Creait REQUIRED)
+message("CREAIT INCLUDE DIRS = ${CREAIT_INCLUDE_DIRS}")
+message("CREAIT LIBS = ${CREAIT_LIBRARIES}")
 
 # Radare only accepts shared libraries for plugins
 add_library(reai_radare MODULE SHARED ${ReaiR2PluginSources})
 add_dependencies(reai_radare generate_cmd_desc)
-target_include_directories(reai_radare PUBLIC ${Radare_INCLUDE_DIRS})
+target_include_directories(reai_radare PUBLIC ${Radare_INCLUDE_DIRS} ${CREAIT_INCLUDE_DIRS})
 target_link_directories(reai_radare PUBLIC ${Radare_LIBRARY_DIRS})
 target_link_libraries(
   reai_radare 
   PUBLIC
   ${Radare_LIBRARIES}
-  ${CURL_LIBRARIES}
-  reai
+  ${CREAIT_LIBRARIES}
+)
+set_target_properties(
+    reai_radare PROPERTIES
+    INSTALL_RPATH "$ENV{HOME}/.local/lib"
+    BUILD_RPATH "${CMAKE_BINARY_DIR}/Source/Radare"
 )
 
 # Custom command to clean generated files when 'make clean' is called

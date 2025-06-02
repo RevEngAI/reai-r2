@@ -6,7 +6,6 @@
 cmake_minimum_required(VERSION 3.25)
 project(reai-r2 VERSION 0 LANGUAGES C CXX)
 
-include(FetchContent)
 find_package(PkgConfig REQUIRED)
 find_package(Python3 REQUIRED)
 set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
@@ -65,9 +64,17 @@ if(APPLE)
     list(APPEND CMAKE_INSTALL_RPATH "@executable_path/../lib")
     list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
     list(APPEND CMAKE_MODULE_PATH "/Applications/Iaito.app/Contents/Resources/lib/cmake")
+    list(APPEND CMAKE_MODULE_PATH "$ENV{HOME}/.local/lib/cmake/Modules")
+    list(APPEND CMAKE_MODULE_PATH "/usr/local/lib/cmake/Modules")
+    list(APPEND CMAKE_MODULE_PATH "/usr/lib/cmake/Modules")
 elseif(UNIX)
     set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/../lib")
+    list(APPEND CMAKE_MODULE_PATH "$ENV{HOME}/.local/lib/cmake/Modules")
+    list(APPEND CMAKE_MODULE_PATH "/usr/local/lib/cmake/Modules")
+    list(APPEND CMAKE_MODULE_PATH "/usr/lib/cmake/Modules")
 endif()
+
+
 message(STATUS "CMake module path: ${CMAKE_MODULE_PATH}")
 # --------------------------------------
 # ---- LGPL-3.0 LICENSED REGION END ----
