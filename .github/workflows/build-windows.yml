@@ -71,20 +71,42 @@ jobs:
           
           # Look specifically for the plugin in radare2 plugin directory
           Write-Host "`n=== Looking for reai_radare plugin ==="
+          $PluginFound = $false
+          
+          # Try to get plugin directory from radare2
           try {
-            $PluginDir = cmd /c "radare2 -H R2_USER_PLUGINS" 2>$null
+            $PluginDir = & "$InstallPath\bin\radare2.exe" -H R2_USER_PLUGINS 2>$null
             if ($PluginDir -and (Test-Path $PluginDir)) {
-              Write-Host "Plugin directory: $PluginDir"
+              Write-Host "Plugin directory from radare2: $PluginDir"
               Get-ChildItem $PluginDir -Filter "*reai*" -ErrorAction SilentlyContinue | ForEach-Object {
                 Copy-Item $_.FullName "artifacts\"
-                Write-Host "Copied plugin: $($_.Name)"
+                Write-Host "Copied plugin from R2_USER_PLUGINS: $($_.Name)"
+                $PluginFound = $true
               }
             }
           } catch {
-            Write-Host "Could not determine plugin directory, searching install path for plugin..."
+            Write-Host "Could not get plugin directory from radare2 command"
+          }
+          
+          # If not found, search install path thoroughly for the plugin
+          if (-not $PluginFound) {
+            Write-Host "Searching install path for reai_radare plugin..."
             Get-ChildItem -Recurse $InstallPath -Filter "*reai_radare*" -ErrorAction SilentlyContinue | ForEach-Object {
               Copy-Item $_.FullName "artifacts\"
-              Write-Host "Found plugin: $($_.Name)"
+              Write-Host "Found plugin in install path: $($_.Name)"
+              $PluginFound = $true
+            }
+          }
+          
+          # Also search for any .dll files containing "reai" that might be the plugin
+          if (-not $PluginFound) {
+            Write-Host "Searching for any reai plugin files..."
+            Get-ChildItem -Recurse $InstallPath -Filter "*reai*.dll" -ErrorAction SilentlyContinue | Where-Object {
+              $_.Name -like "*radare*" -or $_.Name -like "*plugin*" -or $_.Name -eq "reai_radare.dll"
+            } | ForEach-Object {
+              Copy-Item $_.FullName "artifacts\"
+              Write-Host "Found potential plugin: $($_.Name)"
+              $PluginFound = $true
             }
           }
         } else {
@@ -93,17 +115,37 @@ jobs:
         
         # Search build directories for any missed plugin files (.dll and .lib)
         Write-Host "`n=== Searching build directories for plugin files ==="
+        $BuildPluginFound = $false
         Get-ChildItem -Recurse . -Filter "*reai_radare*" -ErrorAction SilentlyContinue | ForEach-Object {
-          Copy-Item $_.FullName "artifacts\" -ErrorAction SilentlyContinue
-          Write-Host "Found in build: $($_.Name)"
+          if ($_.FullName -notlike "*artifacts*") {  # Don't copy from artifacts folder to itself
+            Copy-Item $_.FullName "artifacts\" -ErrorAction SilentlyContinue
+            Write-Host "Found in build: $($_.Name)"
+            $BuildPluginFound = $true
+          }
+        }
+        
+        # If still no plugin found, do a broader search
+        if (-not $BuildPluginFound) {
+          Write-Host "Doing broader search for plugin in build directories..."
+          Get-ChildItem -Recurse . -Filter "*.dll" -ErrorAction SilentlyContinue | Where-Object {
+            ($_.Name -like "*reai*" -and ($_.Name -like "*radare*" -or $_.Name -like "*plugin*")) -and
+            $_.FullName -notlike "*artifacts*" -and 
+            $_.FullName -notlike "*Dependencies*" -and
+            $_.Name -notlike "r_*.dll"
+          } | ForEach-Object {
+            Copy-Item $_.FullName "artifacts\" -ErrorAction SilentlyContinue
+            Write-Host "Found potential plugin in build: $($_.Name)"
+          }
         }
         
         # Search build directories for any missed reai library files
         Write-Host "`n=== Searching build directories for reai library files ==="
         @("*reai.dll", "*reai.lib") | ForEach-Object {
           Get-ChildItem -Recurse . -Filter $_ -ErrorAction SilentlyContinue | ForEach-Object {
-            Copy-Item $_.FullName "artifacts\" -ErrorAction SilentlyContinue
-            Write-Host "Found reai library: $($_.Name)"
+            if ($_.FullName -notlike "*artifacts*") {  # Don't copy from artifacts folder to itself
+              Copy-Item $_.FullName "artifacts\" -ErrorAction SilentlyContinue
+              Write-Host "Found reai library: $($_.Name)"
+            }
           }
         }
         
@@ -111,8 +153,22 @@ jobs:
         $files = Get-ChildItem "artifacts"
         if ($files) {
           $files | Sort-Object Name | ForEach-Object { Write-Host "$($_.Name) ($($_.Length) bytes)" }
+          
+          # Check if we have the essential files
+          $hasReaiDll = $files | Where-Object { $_.Name -eq "reai.dll" }
+          $hasPlugin = $files | Where-Object { $_.Name -like "*reai_radare*" -or ($_.Name -like "*reai*" -and $_.Name -like "*radare*") }
+          
+          Write-Host "`n=== Build Summary ==="
+          Write-Host "✅ reai.dll: $(if ($hasReaiDll) { 'Found' } else { 'MISSING' })"
+          Write-Host "$(if ($hasPlugin) { '✅' } else { '❌' }) Plugin: $(if ($hasPlugin) { 'Found' } else { 'MISSING' })"
+          
+          if (-not $hasPlugin) {
+            Write-Host "WARNING: reai_radare plugin was not found! This is a critical issue."
+            exit 1
+          }
         } else {
-          Write-Host "WARNING: No artifacts were collected!"
+          Write-Host "ERROR: No artifacts were collected!"
+          exit 1
         }
       shell: powershell
       
@@ -121,4 +177,4 @@ jobs:
       with:
         name: reai-r2-windows-binaries
         path: artifacts/
-        if-no-files-found: warn 
+        if-no-files-found: error
