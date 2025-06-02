@@ -51,25 +51,69 @@ jobs:
         if (Test-Path $InstallPath) {
           Get-ChildItem -Recurse $InstallPath | Select-Object -First 30 | ForEach-Object { Write-Host $_.FullName }
           
-          Write-Host "`n=== Collecting Runtime DLLs ==="
-          # Collect ALL DLL files (runtime libraries)
-          Get-ChildItem -Recurse $InstallPath -Filter "*.dll" | ForEach-Object {
+          Write-Host "`n=== Collecting Our Built Libraries (.dll) ==="
+          # Collect only our built libraries (exclude radare2 system DLLs)
+          Get-ChildItem -Recurse $InstallPath -Filter "*.dll" | Where-Object { 
+            $_.Name -notlike "r_*.dll" -and $_.Name -notlike "radare2*.dll" 
+          } | ForEach-Object {
             Copy-Item $_.FullName "artifacts\"
             Write-Host "Copied DLL: $($_.Name)"
+          }
+          
+          Write-Host "`n=== Collecting Our Built Import Libraries (.lib) ==="
+          # Collect import libraries for our built libraries (exclude radare2 system LIBs)
+          Get-ChildItem -Recurse $InstallPath -Filter "*.lib" | Where-Object { 
+            $_.Name -notlike "r_*.lib" -and $_.Name -notlike "radare2*.lib" 
+          } | ForEach-Object {
+            Copy-Item $_.FullName "artifacts\"
+            Write-Host "Copied LIB: $($_.Name)"
+          }
+          
+          # Look specifically for the plugin in radare2 plugin directory
+          Write-Host "`n=== Looking for reai_radare plugin ==="
+          try {
+            $PluginDir = cmd /c "radare2 -H R2_USER_PLUGINS" 2>$null
+            if ($PluginDir -and (Test-Path $PluginDir)) {
+              Write-Host "Plugin directory: $PluginDir"
+              Get-ChildItem $PluginDir -Filter "*reai*" -ErrorAction SilentlyContinue | ForEach-Object {
+                Copy-Item $_.FullName "artifacts\"
+                Write-Host "Copied plugin: $($_.Name)"
+              }
+            }
+          } catch {
+            Write-Host "Could not determine plugin directory, searching install path for plugin..."
+            Get-ChildItem -Recurse $InstallPath -Filter "*reai_radare*" -ErrorAction SilentlyContinue | ForEach-Object {
+              Copy-Item $_.FullName "artifacts\"
+              Write-Host "Found plugin: $($_.Name)"
+            }
           }
         } else {
           Write-Host "Install path not found: $InstallPath"
         }
         
-        # Also search in build directories for any missed DLLs
-        Write-Host "`n=== Searching build directories ==="
-        Get-ChildItem -Recurse . -Filter "*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
+        # Search build directories for any missed plugin files (.dll and .lib)
+        Write-Host "`n=== Searching build directories for plugin files ==="
+        Get-ChildItem -Recurse . -Filter "*reai_radare*" -ErrorAction SilentlyContinue | ForEach-Object {
           Copy-Item $_.FullName "artifacts\" -ErrorAction SilentlyContinue
           Write-Host "Found in build: $($_.Name)"
         }
         
+        # Search build directories for any missed reai library files
+        Write-Host "`n=== Searching build directories for reai library files ==="
+        @("*reai.dll", "*reai.lib") | ForEach-Object {
+          Get-ChildItem -Recurse . -Filter $_ -ErrorAction SilentlyContinue | ForEach-Object {
+            Copy-Item $_.FullName "artifacts\" -ErrorAction SilentlyContinue
+            Write-Host "Found reai library: $($_.Name)"
+          }
+        }
+        
         Write-Host "`n=== Final Runtime Binaries ==="
-        Get-ChildItem "artifacts" | ForEach-Object { Write-Host $_.Name }
+        $files = Get-ChildItem "artifacts"
+        if ($files) {
+          $files | Sort-Object Name | ForEach-Object { Write-Host "$($_.Name) ($($_.Length) bytes)" }
+        } else {
+          Write-Host "WARNING: No artifacts were collected!"
+        }
       shell: powershell
       
     - name: Upload artifacts
