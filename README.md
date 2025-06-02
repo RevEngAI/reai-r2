@@ -1,5 +1,9 @@
 # RevEng.AI Radare Plugin
 
+![Build Linux](https://github.com/RevEngAI/reai-r2/workflows/Build%20Linux/badge.svg)
+![Build macOS](https://github.com/RevEngAI/reai-r2/workflows/Build%20macOS/badge.svg)
+![Build Windows](https://github.com/RevEngAI/reai-r2/workflows/Build%20Windows/badge.svg)
+
 RevEng.AI plugin for Radare.
 
 ## Installation

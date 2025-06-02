@@ -1,0 +1,89 @@
+name: Build Linux
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          ninja-build \
+          pkg-config \
+          python3 \
+          python3-pip \
+          python3-yaml \
+          git \
+          wget \
+          curl \
+          libcurl4-openssl-dev
+          
+    - name: Install radare2
+      run: |
+        wget -qO- https://github.com/radareorg/radare2/releases/download/5.9.8/radare2_5.9.8_amd64.deb -O /tmp/radare2.deb
+        sudo dpkg -i /tmp/radare2.deb || sudo apt-get install -f -y
+        radare2 -v
+        
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install pyyaml
+        
+    - name: Build project
+      run: |
+        chmod +x Scripts/Build.sh
+        bash Scripts/Build.sh
+        
+    - name: Collect ALL artifacts
+      run: |
+        mkdir -p artifacts/bin artifacts/lib artifacts/include artifacts/plugins artifacts/cmake
+        
+        # Show what was built
+        echo "=== Contents of $HOME/.local ==="
+        find $HOME/.local -type f | head -20
+        
+        # Collect all built libraries
+        find $HOME/.local/lib -name "*.so*" -exec cp {} artifacts/lib/ \; 2>/dev/null || true
+        find $HOME/.local/lib -name "*.a" -exec cp {} artifacts/lib/ \; 2>/dev/null || true
+        
+        # Collect headers
+        if [ -d "$HOME/.local/include" ]; then
+          cp -r $HOME/.local/include/* artifacts/include/ 2>/dev/null || true
+        fi
+        
+        # Collect CMake files
+        find $HOME/.local -name "*.cmake" -exec cp {} artifacts/cmake/ \; 2>/dev/null || true
+        find $HOME/.local -path "*/cmake/*" -name "*" -type f -exec cp {} artifacts/cmake/ \; 2>/dev/null || true
+        
+        # Collect binaries
+        find $HOME/.local/bin -type f -exec cp {} artifacts/bin/ \; 2>/dev/null || true
+        
+        # Collect radare2 plugin
+        PLUGIN_DIR=$(radare2 -H R2_USER_PLUGINS 2>/dev/null) || PLUGIN_DIR=""
+        if [ -n "$PLUGIN_DIR" ] && [ -d "$PLUGIN_DIR" ]; then
+          find "$PLUGIN_DIR" -name "*reai*" -exec cp {} artifacts/plugins/ \; 2>/dev/null || true
+        fi
+        
+        # Show what we collected
+        echo "=== Collected Artifacts ==="
+        find artifacts -type f | sort
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: reai-r2-linux-complete
+        path: artifacts/
+        if-no-files-found: warn 

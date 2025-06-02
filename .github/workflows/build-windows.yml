@@ -1,0 +1,118 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v1.1
+      
+    - name: Setup Visual Studio Developer Environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+        
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install pyyaml
+        
+    - name: Build project
+      run: |
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        .\Scripts\Build.ps1
+      shell: powershell
+      
+    - name: Collect ALL artifacts
+      run: |
+        New-Item -ItemType Directory -Force -Path "artifacts\bin"
+        New-Item -ItemType Directory -Force -Path "artifacts\lib"
+        New-Item -ItemType Directory -Force -Path "artifacts\include"
+        New-Item -ItemType Directory -Force -Path "artifacts\plugins"
+        New-Item -ItemType Directory -Force -Path "artifacts\cmake"
+        
+        $InstallPath = "$env:USERPROFILE\.local\RevEngAI\Radare2\Install"
+        
+        Write-Host "=== Contents of Install Directory ==="
+        if (Test-Path $InstallPath) {
+          Get-ChildItem -Recurse $InstallPath | Select-Object -First 30 | ForEach-Object { Write-Host $_.FullName }
+          
+          Write-Host "`n=== Collecting Libraries ==="
+          # Collect ALL DLL and LIB files
+          Get-ChildItem -Recurse $InstallPath -Filter "*.dll" | ForEach-Object {
+            Copy-Item $_.FullName "artifacts\lib\"
+            Write-Host "Copied DLL: $($_.Name)"
+          }
+          
+          Get-ChildItem -Recurse $InstallPath -Filter "*.lib" | ForEach-Object {
+            Copy-Item $_.FullName "artifacts\lib\"
+            Write-Host "Copied LIB: $($_.Name)"
+          }
+          
+          Write-Host "`n=== Collecting Binaries ==="
+          # Collect executables
+          Get-ChildItem -Recurse $InstallPath -Filter "*.exe" | ForEach-Object {
+            Copy-Item $_.FullName "artifacts\bin\"
+            Write-Host "Copied EXE: $($_.Name)"
+          }
+          
+          Write-Host "`n=== Collecting Headers ==="
+          # Collect headers
+          Get-ChildItem -Recurse $InstallPath -Filter "*.h" | ForEach-Object {
+            Copy-Item $_.FullName "artifacts\include\"
+            Write-Host "Copied Header: $($_.Name)"
+          }
+          
+          Write-Host "`n=== Collecting CMake files ==="
+          # Collect CMake files
+          Get-ChildItem -Recurse $InstallPath -Filter "*.cmake" | ForEach-Object {
+            Copy-Item $_.FullName "artifacts\cmake\"
+            Write-Host "Copied CMake: $($_.Name)"
+          }
+          
+          # Collect any reai-specific files
+          Get-ChildItem -Recurse $InstallPath | Where-Object { $_.Name -match "reai" } | ForEach-Object {
+            if ($_.Extension -eq ".dll") {
+              Copy-Item $_.FullName "artifacts\plugins\"
+              Write-Host "Copied Plugin: $($_.Name)"
+            }
+          }
+        } else {
+          Write-Host "Install path not found: $InstallPath"
+        }
+        
+        # Also search in build directories for any missed artifacts
+        Write-Host "`n=== Searching build directories ==="
+        Get-ChildItem -Recurse . -Filter "*reai*" -ErrorAction SilentlyContinue | ForEach-Object {
+          if ($_.Extension -in @('.dll', '.lib', '.exe')) {
+            $dest = switch ($_.Extension) {
+              '.dll' { "artifacts\lib\" }
+              '.lib' { "artifacts\lib\" }
+              '.exe' { "artifacts\bin\" }
+            }
+            Copy-Item $_.FullName $dest -ErrorAction SilentlyContinue
+            Write-Host "Found in build: $($_.Name)"
+          }
+        }
+        
+        Write-Host "`n=== Final Artifact Summary ==="
+        Get-ChildItem -Recurse "artifacts" | ForEach-Object { Write-Host $_.FullName }
+      shell: powershell
+      
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: reai-r2-windows-complete
+        path: artifacts/
+        if-no-files-found: warn 
