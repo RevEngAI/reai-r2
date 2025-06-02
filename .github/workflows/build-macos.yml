@@ -67,5 +67,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: reai-r2-macos-binaries
-        path: artifacts/
+        path: |
+          artifacts/
+          Scripts/install-macos.sh
+          Scripts/README.md
         if-no-files-found: warn 

@@ -176,5 +176,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: reai-r2-windows-binaries
-        path: artifacts/
+        path: |
+          artifacts/
+          Scripts/install-windows.ps1
+          Scripts/README.md
         if-no-files-found: error

@@ -83,5 +83,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: reai-r2-linux-binaries
-        path: artifacts/
+        path: |
+          artifacts/
+          Scripts/install-linux.sh
+          Scripts/README.md
         if-no-files-found: warn 

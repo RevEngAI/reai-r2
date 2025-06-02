@@ -103,100 +103,130 @@ jobs:
         body: |
           ## RevEngAI Radare2 Plugin Release ${{ steps.tag_name.outputs.tag_name }}
           
-          This release contains the RevEngAI plugin and runtime libraries for Radare2.
+          This release contains the RevEngAI plugin for **Radare2** with automated install scripts.
           
           ### 📦 Downloads
           
           | Platform | Download | Contents |
           |----------|----------|----------|
-          | 🐧 **Linux** | `reai-r2-linux.tar.gz` | Plugin + Runtime Libraries |
-          | 🍎 **macOS** | `reai-r2-macos.tar.gz` | Plugin + Runtime Libraries |
-          | 🪟 **Windows** | `reai-r2-windows.zip` | Plugin + Runtime Libraries + curl |
+          | 🐧 **Linux** | `reai-r2-linux.tar.gz` | Radare2 plugin + install script |
+          | 🍎 **macOS** | `reai-r2-macos.tar.gz` | Radare2 plugin + install script |
+          | 🪟 **Windows** | `reai-r2-windows.zip` | Radare2 plugin + install script |
           
           ### 📋 What's Included
           
-          **All Platforms:**
-          - 🔌 `reai_radare` plugin (.so/.dylib/.dll)
-          - 📚 `libreai`/`reai` runtime library
-          
-          **Windows Additional:**
-          - 🌐 libcurl runtime library
-          - 📄 Import libraries (.lib files) for development
-          
-          ### 🚀 Installation
-          
-          #### 🚀 Quick Install (One-line commands)
-          
           **Linux:**
-          ```bash
-          curl -sL $(curl -s https://api.github.com/repos/RevEngAI/reai-r2/releases/latest | grep -o 'https://.*reai-r2-linux.tar.gz') | tar -xz && cp reai_radare.* $(radare2 -H R2_USER_PLUGINS) && sudo cp *.so /usr/local/lib/ && sudo ldconfig
-          ```
+          - 🔌 `libreai_radare.so` - Radare2 plugin  
+          - 📚 `libreai.so` - RevEngAI runtime library
+          - 🚀 `install-linux.sh` - Automated installer with rpath fixing
+          - 📖 `README.md` - Detailed installation documentation
           
           **macOS:**
+          - 🔌 `libreai_radare.so` - Radare2 plugin
+          - 📚 `libreai.dylib` - RevEngAI runtime library
+          - 🚀 `install-macos.sh` - Automated installer with rpath fixing
+          - 📖 `README.md` - Detailed installation documentation
+          
+          **Windows:**
+          - 🔌 `reai_radare.dll` - Radare2 plugin
+          - 🔌 `reai_radare.lib` - Plugin import library
+          - 📚 `reai.dll` + `reai.lib` - RevEngAI runtime library
+          - 🌐 `libcurl.dll` + `libcurl_imp.lib` - HTTP client library
+          - 🚀 `install-windows.ps1` - Automated installer with PATH setup
+          - 📖 `README.md` - Detailed installation documentation
+          
+          ### 🚀 Installation (Recommended)
+          
+          **🎯 Use the included install scripts for best results:**
+          
+          #### Linux
           ```bash
-          curl -sL $(curl -s https://api.github.com/repos/RevEngAI/reai-r2/releases/latest | grep -o 'https://.*reai-r2-macos.tar.gz') | tar -xz && cp reai_radare.* $(radare2 -H R2_USER_PLUGINS) && sudo cp *.dylib /usr/local/lib/
+          # Download and extract
+          wget https://github.com/RevEngAI/reai-r2/releases/download/${{ steps.tag_name.outputs.tag_name }}/reai-r2-linux.tar.gz
+          tar -xzf reai-r2-linux.tar.gz
+          cd reai-r2-linux
+          
+          # Run automated installer (requires patchelf)
+          sudo apt install patchelf radare2  # Ubuntu/Debian
+          chmod +x install-linux.sh
+          ./install-linux.sh
           ```
           
-          **Windows (PowerShell):**
-          ```powershell
-          $url = (Invoke-RestMethod "https://api.github.com/repos/RevEngAI/reai-r2/releases/latest").assets | Where-Object {$_.name -like "*windows.zip"} | Select-Object -ExpandProperty browser_download_url; Invoke-WebRequest $url -OutFile "reai-r2.zip"; Expand-Archive "reai-r2.zip" -Force; $pluginDir = & radare2 -H R2_USER_PLUGINS; if (-not (Test-Path $pluginDir)) { New-Item -ItemType Directory -Path $pluginDir }; Copy-Item "reai-r2\*.dll" $pluginDir; Remove-Item "reai-r2.zip", "reai-r2" -Recurse -Force
-          ```
-          
-          ---
-          
-          #### 📋 Manual Installation
-          
-          #### Linux/macOS
+          #### macOS  
           ```bash
-          # Extract the package
-          tar -xzf reai-r2-<platform>.tar.gz
+          # Download and extract
+          curl -L -O https://github.com/RevEngAI/reai-r2/releases/download/${{ steps.tag_name.outputs.tag_name }}/reai-r2-macos.tar.gz
+          tar -xzf reai-r2-macos.tar.gz
+          cd reai-r2-macos
           
-          # Install plugin
-          cp reai_radare.* $(radare2 -H R2_USER_PLUGINS)
-          
-          # Install libraries to system (optional, if not found automatically)
-          sudo cp libreai.* /usr/local/lib/
-          sudo ldconfig  # Linux only
+          # Run automated installer (requires Xcode tools)
+          brew install radare2  # if not already installed
+          xcode-select --install  # if not already installed
+          chmod +x install-macos.sh
+          ./install-macos.sh
           ```
           
           #### Windows
+          ```powershell
+          # Download and extract (PowerShell)
+          Invoke-WebRequest "https://github.com/RevEngAI/reai-r2/releases/download/${{ steps.tag_name.outputs.tag_name }}/reai-r2-windows.zip" -OutFile "reai-r2-windows.zip"
+          Expand-Archive "reai-r2-windows.zip" -Force
+          cd reai-r2-windows
           
-          **⚠️ Important:** On Windows, ALL DLL files must be placed in the radare2 plugins directory to ensure proper loading.
-          
-          ```cmd
-          # Extract the zip file to a temporary location
-          # 
-          # Get the radare2 plugins directory path:
-          radare2 -H R2_USER_PLUGINS
-          # This will show something like: C:\Users\YourName\AppData\Local\radare2\plugins
-          
-          # Method 1: Copy ALL DLL files to plugins directory (RECOMMENDED)
-          copy *.dll "%APPDATA%\radare2\plugins\"
-          
-          # Method 2: If the above path doesn't work, create it manually:
-          mkdir "%APPDATA%\radare2\plugins" 2>nul
-          copy *.dll "%APPDATA%\radare2\plugins\"
-          
-          # Method 3: For portable radare2 installations:
-          # copy *.dll "C:\path\to\your\radare2\plugins\"
+          # Run automated installer
+          .\install-windows.ps1
           ```
           
-          **Files that must be installed:**
-          - `reai_radare.dll` (the plugin)
-          - `reai.dll` (RevEngAI library)
-          - `libcurl.dll` (HTTP client library)
-          - Other DLL dependencies (if any)
+          ### 🛠️ What The Install Scripts Do
           
-          **Optional for developers:**
-          - `.lib` files can be placed anywhere in your development environment for linking
+          The install scripts provide **intelligent, platform-specific installation**:
+          
+          - ✅ **Install libraries** to proper user directories (`~/.local/lib/`)
+          - ✅ **Install Radare2 plugin** to `$(radare2 -H R2_USER_PLUGINS)`
+          - ✅ **Fix rpath/library paths** so plugins can find dependencies
+          - ✅ **Set up environment** with helper scripts for easy usage
+          - ✅ **Verify installation** and provide clear success/error messages
+          
+          ### 📋 Manual Installation (Advanced)
+          
+          If you prefer manual installation or the scripts don't work:
+          
+          #### Exact File Locations
+          
+          **Shared Libraries:**
+          - Linux: `~/.local/lib/libreai.so`
+          - macOS: `~/.local/lib/libreai.dylib`  
+          - Windows: `%USERPROFILE%\.local\bin\reai.dll` + `%USERPROFILE%\.local\lib\reai.lib`
+          
+          **Radare2 Plugin:**
+          - All platforms: Copy to `$(radare2 -H R2_USER_PLUGINS)`
+          
+          **Windows Additional Dependencies:**
+          - `libcurl.dll` → `%USERPROFILE%\.local\bin\`
+          - `libcurl_imp.lib` → `%USERPROFILE%\.local\lib\`
+          - `reai_radare.lib` → Plugin directory
+          
+          **⚠️ Important:** On Unix systems, you may need to set environment variables:
+          ```bash
+          export LD_LIBRARY_PATH="$HOME/.local/lib:$LD_LIBRARY_PATH"  # Linux
+          export DYLD_LIBRARY_PATH="$HOME/.local/lib:$DYLD_LIBRARY_PATH"  # macOS
+          ```
           
           ### ✅ Verification
           
-          After installation, verify the plugin is loaded:
+          After installation, verify the plugin works:
+          
+          **Radare2:**
           ```bash
-          r2 -
-          [0x00000000]> REh
+          radare2 /bin/ls
+          [0x00000000]> reai help
           # Should display RevEngAI plugin help
+          ```
+          
+          **Check plugin loading:**
+          ```bash
+          radare2 -c "L" /bin/ls | grep reai
+          # Should show the loaded reai plugin
           ```
           
           ### 📝 Configuration
@@ -213,8 +243,49 @@ jobs:
           - **Internet connection** for RevEngAI API access
           - **Valid RevEngAI API key** from https://portal.reveng.ai
           
+          **Platform-specific:**
+          - **Linux:** `patchelf` tool for rpath fixing (`sudo apt install patchelf`)
+          - **macOS:** Xcode command line tools for rpath fixing (`xcode-select --install`)
+          - **Windows:** PowerShell (included with Windows)
+          
           ### 🐛 Issues & Support
           
-          Report issues at: https://github.com/RevEngAI/reai-r2/issues
+          - 📋 **Installation issues:** Check the install script output for detailed error messages
+          - 🔧 **Plugin not loading:** Verify environment variables are set (see install script output)
+          - 🌐 **API issues:** Verify your API key and configuration file
+          - 🐛 **Bug reports:** https://github.com/RevEngAI/reai-r2/issues
+          
+          ### 🔍 Troubleshooting
+          
+          **Plugin not found:**
+          ```bash
+          # Check plugin directory
+          radare2 -H R2_USER_PLUGINS
+          ls "$(radare2 -H R2_USER_PLUGINS)"
+          
+          # Check if plugin file exists
+          ls -la "$(radare2 -H R2_USER_PLUGINS)"/libreai_radare.*
+          ```
+          
+          **Library not found (Unix):**
+          ```bash
+          # macOS
+          otool -L ~/.local/lib/libreai.dylib
+          export DYLD_LIBRARY_PATH="$HOME/.local/lib:$DYLD_LIBRARY_PATH"
+          
+          # Linux
+          ldd ~/.local/lib/libreai.so
+          export LD_LIBRARY_PATH="$HOME/.local/lib:$LD_LIBRARY_PATH"
+          ```
+          
+          **Windows DLL issues:**
+          ```powershell
+          # Check if DLLs are in PATH
+          where reai.dll
+          where libcurl.dll
+          
+          # Add to PATH if needed
+          $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+          ```
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
