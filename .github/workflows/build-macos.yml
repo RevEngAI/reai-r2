@@ -41,44 +41,31 @@ jobs:
         source .venv/bin/activate
         bash Scripts/Build.sh
         
-    - name: Collect ALL artifacts
+    - name: Collect runtime binaries
       run: |
-        mkdir -p artifacts/bin artifacts/lib artifacts/include artifacts/plugins artifacts/cmake
+        mkdir -p artifacts
         
         # Show what was built
         echo "=== Contents of $HOME/.local ==="
         find $HOME/.local -type f | head -20
         
-        # Collect all built libraries (both .dylib and .so)
-        find $HOME/.local/lib -name "*.dylib*" -exec cp {} artifacts/lib/ \; 2>/dev/null || true
-        find $HOME/.local/lib -name "*.so*" -exec cp {} artifacts/lib/ \; 2>/dev/null || true
-        find $HOME/.local/lib -name "*.a" -exec cp {} artifacts/lib/ \; 2>/dev/null || true
-        
-        # Collect headers
-        if [ -d "$HOME/.local/include" ]; then
-          cp -r $HOME/.local/include/* artifacts/include/ 2>/dev/null || true
-        fi
-        
-        # Collect CMake files
-        find $HOME/.local -name "*.cmake" -exec cp {} artifacts/cmake/ \; 2>/dev/null || true
-        find $HOME/.local -path "*/cmake/*" -name "*" -type f -exec cp {} artifacts/cmake/ \; 2>/dev/null || true
-        
-        # Collect binaries
-        find $HOME/.local/bin -type f -exec cp {} artifacts/bin/ \; 2>/dev/null || true
+        # Collect only shared libraries (.dylib and .so files)
+        find $HOME/.local/lib -name "*.dylib*" -exec cp {} artifacts/ \; 2>/dev/null || true
+        find $HOME/.local/lib -name "*.so*" -exec cp {} artifacts/ \; 2>/dev/null || true
         
         # Collect radare2 plugin
         PLUGIN_DIR=$(radare2 -H R2_USER_PLUGINS 2>/dev/null) || PLUGIN_DIR=""
         if [ -n "$PLUGIN_DIR" ] && [ -d "$PLUGIN_DIR" ]; then
-          find "$PLUGIN_DIR" -name "*reai*" -exec cp {} artifacts/plugins/ \; 2>/dev/null || true
+          find "$PLUGIN_DIR" -name "*reai*" -exec cp {} artifacts/ \; 2>/dev/null || true
         fi
         
         # Show what we collected
-        echo "=== Collected Artifacts ==="
+        echo "=== Collected Runtime Binaries ==="
         find artifacts -type f | sort
         
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: reai-r2-macos-complete
+        name: reai-r2-macos-binaries
         path: artifacts/
         if-no-files-found: warn 
