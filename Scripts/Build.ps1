@@ -16,7 +16,9 @@ $InstallPath = "$BaseDir\\Install"
 $DownPath = "$BuildDir\\Artifacts"
 $DepsPath = "$BuildDir\\Dependencies"
 
-Remove-Item -LiteralPath "$BaseDir" -Force -Recurse
+if (Test-Path -LiteralPath "$BaseDir") {
+    Remove-Item -LiteralPath "$BaseDir" -Force -Recurse
+}
 
 md "$BaseDir"
 md "$BuildDir"

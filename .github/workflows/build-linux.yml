@@ -33,18 +33,21 @@ jobs:
           
     - name: Install radare2
       run: |
-        wget -qO- https://github.com/radareorg/radare2/releases/download/5.9.8/radare2_5.9.8_amd64.deb -O /tmp/radare2.deb
+        wget -qO- https://github.com/radareorg/radare2/releases/download/5.9.8/radare2-dev_5.9.8_amd64.deb -O /tmp/radare2.deb
         sudo dpkg -i /tmp/radare2.deb || sudo apt-get install -f -y
         radare2 -v
         
     - name: Install Python dependencies
       run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install pyyaml
+        python3 -m venv .venv
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+        python -m pip install pyyaml
         
     - name: Build project
       run: |
         chmod +x Scripts/Build.sh
+        source .venv/bin/activate
         bash Scripts/Build.sh
         
     - name: Collect ALL artifacts
