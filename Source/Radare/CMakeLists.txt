@@ -33,7 +33,7 @@ message(STATUS "Plugin version: ${PLUGIN_VERSION}")
 # Generate a version header
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/PluginVersion.h.in
-    ${CMAKE_CURRENT_BINARY_DIR}/PluginVersion.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/PluginVersion.h
     @ONLY
 )
 
