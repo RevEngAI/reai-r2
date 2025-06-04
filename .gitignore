@@ -4,3 +4,4 @@ Build*/
 compile_commands.json
 Source/Radare/CmdDesc.h
 Source/Radare/CmdDesc.c
+Source/Radare/PluginVersion.h

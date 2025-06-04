@@ -1,5 +1,4 @@
 group: RE
-# Basic commands at root level
 commands:
   - name: REi
     cname: plugin_initialize
@@ -58,51 +57,14 @@ commands:
     summary: Show RevEng.AI ASCII art
     args: []
     
-  # Command groups as commands
-  - name: REa
-    cname: analysis_cmd_group_help
+  - group: REa
     summary: Commands for working with RevEngAI analyses
-    args: []
-    details:
-      - name: Group Commands
-        entries:
-          - text: "For detailed help on this command group, use: REa?"
-      - name: File
-        entries:
-          - text: analysis.yaml
     
-  - name: REf
-    cname: function_cmd_group_help
+  - group: REf
     summary: Commands for working with and searching functions
-    args: []
-    details:
-      - name: Group Commands
-        entries:
-          - text: "For detailed help on this command group, use: REf?"
-      - name: File
-        entries:
-          - text: function.yaml
     
-  - name: REb
-    cname: binary_cmd_group_help
+  - group: REb
     summary: Commands for searching and working with binaries
-    args: []
-    details:
-      - name: Group Commands
-        entries:
-          - text: "For detailed help on this command group, use: REb?"
-      - name: File
-        entries:
-          - text: binary.yaml
     
-  - name: REc
-    cname: collection_cmd_group_help
+  - group: REc
     summary: Commands for working with RevEngAI collections
-    args: []
-    details:
-      - name: Group Commands
-        entries:
-          - text: "For detailed help on this command group, use: REc?"
-      - name: File
-        entries:
-          - text: collection.yaml 

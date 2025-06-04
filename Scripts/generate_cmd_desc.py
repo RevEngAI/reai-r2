@@ -8,119 +8,221 @@ import yaml
 import glob
 import time
 from datetime import datetime
+from typing import Tuple, Dict, List, Any
 
-def camel_to_snake(name):
-    """Convert camelCase to snake_case"""
-    import re
-    name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+def process_command_group(
+    data: Dict[str, Any],
+    simple_commands: List[Dict[str, Any]],
+    command_groups: Dict[str, Dict[str, Any]]
+) -> None:
+    """
+    Recursively processes a nested command structure and separates it into simple commands
+    and command groups.
 
-def load_commands():
-    """Load commands from YAML files"""
-    commands = []
+    Parameters:
+    ----------
+    data : dict
+        A dictionary representing either a command group or a command.
+        Must contain a 'group' key if it is a group.
+
+    simple_commands : list
+        A list to which simple command dictionaries (with a 'name' key) will be appended.
+
+    command_groups : dict
+        A dictionary where command group names are mapped to their summary and contained commands.
+
+    Raises:
+    ------
+    ValueError:
+        If a command group contains unexpected keys such as 'name', 'args', or 'cname'.
+        Or if a dictionary without 'group' is passed at the top level.
+
+    Example:
+    -------
+    simple_cmds = []
+    cmd_groups = {}
+    process_command_group(parsed_yaml_data, simple_cmds, cmd_groups)
+    """
+
+    if 'group' in data:
+        # Validation: command group should not contain command fields
+        invalid_keys = {'name', 'args', 'cname'}
+        if any(key in data for key in invalid_keys):
+            raise ValueError(
+                f"Invalid command group declaration '{data['group']}': "
+                f"contains unrequired fields {invalid_keys & data.keys()}"
+            )
+
+        # Extract group details
+        group_name = data['group']
+        group_summary = data.get('summary', '')
+        group_commands = data.get('commands', [])
+
+        # Store in command_groups dictionary
+        command_groups[group_name] = {
+            'summary': group_summary,
+            'commands': group_commands
+        }
+
+        # Recursively process each command in the group
+        for cmd in group_commands:
+            # Optional: annotate each command with its parent group for traceability
+            cmd['parent'] = group_name
+
+            if 'group' in cmd:
+                process_command_group(cmd, simple_commands, command_groups)
+            elif 'name' in cmd:
+                if 'commands' in cmd:
+                    raise ValueError(
+                        f"Invalid command {cmd['name']} with 'commands' field inside it's declaration"
+                    )
+                simple_commands.append(cmd)
+            else:
+                raise ValueError(
+                    f"Malformed command entry in group '{group_name}': expected either 'group' or 'name'"
+                )
+    else:
+        raise ValueError(
+            "Expected a command group at the top level. Found an entry without a 'group' key."
+        )
+
+def load_commands() -> Tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
+    """
+    Load command definitions from YAML files and process them into:
+    - Simple commands
+    - Command groups
+    - Dual-role commands (groups that also contain a command with the same name)
+
+    Returns:
+    -------
+    Tuple containing:
+    - simple_commands: List of individual command dictionaries
+    - command_groups: Dictionary mapping group names to group metadata and commands
+    - dual_role_commands: Dictionary of groups that also have a command of the same name
+
+    Raises:
+    ------
+    ValueError:
+        If any YAML file does not conform to the expected structure.
+    """
+    simple_commands = []
     command_groups = {}
-    dual_role_commands = {}  # Commands that are both groups and individual commands
-    
-    # Load all YAML files
+    dual_role_commands = {}
+
+    # Load all YAML files in the expected directory
     yaml_files = glob.glob(os.path.join('Source', 'Radare', 'CmdDesc', '*.yaml'))
-    
+
     for yaml_file in yaml_files:
         with open(yaml_file, 'r') as f:
             data = yaml.safe_load(f)
-            
-        if not data or 'group' not in data or 'commands' not in data:
-            continue
-            
-        group_name = data['group']
-        group_commands = data['commands']
-        
-        # Store commands for this group
-        command_groups[group_name] = group_commands
-        
-        # Add all commands to the main list
-        for cmd in group_commands:
-            cmd['parent'] = group_name
-            commands.append(cmd)
-            
-            # Check if this command has the same name as its group
-            if cmd['name'] == group_name:
-                dual_role_commands[group_name] = cmd
-    
-    # Detect nested command groups by finding commands that are prefixes of other commands
-    nested_groups = {}
-    all_command_names = [cmd['name'] for cmd in commands]
-    
-    for cmd in commands:
-        cmd_name = cmd['name']
-        # Find commands that start with this command name (but are longer)
-        subcommands = [name for name in all_command_names 
-                      if name.startswith(cmd_name) and len(name) > len(cmd_name)]
-        
-        # If this command has subcommands, it's a nested group
-        if subcommands:
-            nested_groups[cmd_name] = [c for c in commands if c['name'] in subcommands]
-            # Add to command_groups
-            command_groups[cmd_name] = nested_groups[cmd_name]
-    
-    return commands, command_groups, dual_role_commands
 
-def generate_header_file(commands, command_groups, dual_role_commands):
-    """Generate CmdDesc.h"""
+        # Basic structural validation
+        if not data or 'group' not in data or 'commands' not in data:
+            raise ValueError(f"Invalid structure in {yaml_file}: expected a top-level command group")
+
+        process_command_group(data, simple_commands, command_groups)
+
+    # Detect nested groups and dual-role commands
+    all_command_names = [cmd['name'] for cmd in simple_commands]
+
+    for group_name, group_data in command_groups.items():
+        group_cmds = group_data.get('commands', [])
+
+        # Detect dual-role: if a command in the group has the same name as the group
+        for cmd in group_cmds:
+            if cmd.get('name') == group_name:
+                dual_role_commands[group_name] = {
+                    'group': group_data,
+                    'command': cmd
+                }
+
+    return simple_commands, command_groups, dual_role_commands
+
+def camel_to_snake(name: str) -> str:
+    """Convert camelCase or PascalCase to snake_case."""
+    import re
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+
+def generate_header_file(
+    simple_commands: List[Dict[str, Any]],
+    command_groups: Dict[str, Any],
+    dual_role_commands: Dict[str, Dict[str, Any]]
+) -> str:
+    """
+    Generate the contents of the CmdDesc.h header file based on parsed command definitions.
+
+    Parameters:
+    ----------
+    simple_commands : list of dict
+        List of individual commands (with 'name' and optional 'cname').
+
+    command_groups : dict
+        Mapping of command group names to group metadata including summary and commands.
+
+    dual_role_commands : dict
+        Mapping of group names to their dual role command (a group and command with same name).
+
+    Returns:
+    -------
+    str
+        The contents of the generated header file as a string.
+    """
     current_date = time.strftime('%d %B %Y')
-    
+
     # Handler declarations
     handler_declarations = []
-    for cmd in commands:
+    for cmd in simple_commands:
         if 'cname' in cmd:
             cmd_name = cmd['name']
-            # Include handler if it's not a group, OR if it's a dual-role command (both group and individual command)
             if cmd_name not in command_groups or cmd_name in dual_role_commands:
-                handler_declarations.append(f"R_API RCmdStatus r_{cmd['cname']}_handler(RCore* core, int argc, const char** argv);")
-    
-    # Dispatcher declarations  
+                handler_declarations.append(
+                    f"R_API RCmdStatus r_{cmd['cname']}_handler(RCore* core, int argc, const char** argv);"
+                )
+
+    # Dispatcher declarations
     dispatcher_declarations = []
     processed = set()
-    
-    # Add dispatchers for all individual commands (not groups)
-    for cmd in commands:
+
+    for cmd in simple_commands:
         if 'cname' in cmd:
             cmd_name = cmd['name']
-            # Include dispatcher if it's not a group, OR if it's a dual-role command
             if (cmd_name not in command_groups or cmd_name in dual_role_commands) and cmd_name not in processed:
-                dispatcher_declarations.append(f"R_IPI RCmdStatus r_{cmd['cname']}_dispatcher(RCore* core, int argc, const char** argv);")
+                dispatcher_declarations.append(
+                    f"R_IPI RCmdStatus r_{cmd['cname']}_dispatcher(RCore* core, int argc, const char** argv);"
+                )
                 processed.add(cmd_name)
-    
-    # Add dispatchers for command groups
+
     for group_name in command_groups:
         if group_name not in processed:
             group_cname = camel_to_snake(group_name)
-            dispatcher_declarations.append(f"R_IPI RCmdStatus r_{group_cname}_dispatcher(RCore* core, int argc, const char** argv);")
+            dispatcher_declarations.append(
+                f"R_IPI RCmdStatus r_{group_cname}_dispatcher(RCore* core, int argc, const char** argv);"
+            )
             processed.add(group_name)
-    
+
     # Help function declarations
-    help_declarations = []
-    help_declarations.append("void print_root_help(void);")
-    
-    # Individual command help functions
-    for cmd in commands:
+    help_declarations = ["void print_root_help(void);"]
+
+    for cmd in simple_commands:
         if 'cname' in cmd:
             help_declarations.append(f"void print_{cmd['cname']}_help(void);")
-    
-    # Group help functions
+
     for group_name in command_groups:
         group_cname = camel_to_snake(group_name)
         help_declarations.append(f"void print_{group_cname}_group_help(void);")
-        
-        # Dual help functions for groups with same-named commands
+
         if group_name in dual_role_commands:
-            help_declarations.append(f"void print_{group_name}_dual_help(void);")
-    
+            help_declarations.append(f"void print_{group_cname}_dual_help(void);")
+
+    # Construct header content
     header_content = f"""/**
  * @file : CmdDesc.h
  * @date : {current_date}
  * @author : Generated from YAML command descriptions
  * @copyright: Copyright (c) 2024 RevEngAI. All Rights Reserved.
- * */
+ */
 
 #ifndef RADARE_CMD_DESC_H
 #define RADARE_CMD_DESC_H
@@ -144,144 +246,142 @@ R_API RCmdStatus r_show_help_handler(RCore* core, int argc, const char** argv);
 
 #endif /* RADARE_CMD_DESC_H */
 """
-    
     return header_content
+ 
+def generate_help_implementations(
+    simple_commands: List[Dict[str, Any]],
+    command_groups: Dict[str, Any],
+    dual_role_commands: Dict[str, Dict[str, Any]]
+) -> str:
+    """
+    Generate the C help function implementations for commands and command groups.
 
-def generate_help_implementations(commands, command_groups, dual_role_commands):
-    """Generate help function implementations"""
+    Parameters:
+    ----------
+    simple_commands : list of dict
+        All simple command definitions.
+
+    command_groups : dict
+        Mapping of command group names to their metadata and nested commands.
+
+    dual_role_commands : dict
+        Mapping of group names to a dict containing both group and its command.
+
+    Returns:
+    -------
+    str
+        The generated C function implementations as a string.
+    """
     implementations = []
-    
-    # Root help
+
+    # Root Help
     implementations.append("""/**
  * Print root level help for all commands
  */
 void print_root_help(void) {
     r_cons_println("RevEngAI Radare2 Plugin - Command Help");
-    r_cons_println("=======================================");
-    r_cons_println("REi      - Initialize plugin config with API key");
-    r_cons_println("REm      - List all available AI models for RevEngAI analysis");
-    r_cons_println("REh      - Check connection status with RevEngAI servers");
-    r_cons_println("REu      - Upload binary to RevEngAI servers");
-    r_cons_println("REd      - Decompile function using RevEngAI's AI Decompiler");
-    r_cons_println("REart    - Show RevEng.AI ASCII art");""")
-    
-    # Add group commands to root help
+    r_cons_println("=======================================");""")
+
     for group_name in command_groups:
-        # Find the summary for this group
         group_summary = f"Commands for {group_name} operations"
-        for cmd in commands:
-            if cmd.get('name') == group_name and 'parent' not in cmd:
-                group_summary = cmd.get('summary', group_summary)
+        group_info = command_groups[group_name]
+
+        # Try to extract a summary from an individual command (if present)
+        for cmd in group_info.get("commands", []):
+            if cmd.get("name") == group_name and 'parent' not in cmd:
+                group_summary = cmd.get("summary", group_summary)
                 break
-        implementations[-1] += f'\n    r_cons_println("{group_name:<8} - {group_summary}");'
-    
+
+        group_summary_escaped = group_summary.replace('"', '\\"')
+        implementations[-1] += f'\n    r_cons_println("{group_name:<8} - {group_summary_escaped}");'
+
     implementations[-1] += '''
     r_cons_println("");
-    r_cons_println("Use <command>? to get detailed help for a specific command");
-    r_cons_println("Use <command>?? to get detailed help for specific command (not group)");
+    r_cons_println("Use <command>?  to get help for a group");
+    r_cons_println("Use <command>\\?\\? to get help for a specific command");
 }
 '''
 
-    # Individual command help functions - avoid duplicates
+    # Command Help Functions
     processed_help_functions = set()
-    for cmd in commands:
-        if 'cname' not in cmd:
+    for cmd in simple_commands:
+        cname = camel_to_snake(cmd.get('cname'))
+        cmd_name = cmd.get('name')
+
+        # if it's already processed skip
+        if not cname or cname in processed_help_functions:
             continue
-            
-        cmd_name = cmd['name']
-        cname = cmd['cname']
-        
-        # Skip if we've already processed this help function
-        if cname in processed_help_functions:
-            continue
+
         processed_help_functions.add(cname)
-        
-        summary = cmd.get('summary', '')
+        summary = cmd.get('summary', '').replace('"', '\\"')
         args = cmd.get('args', [])
-        
-        # Build usage string
+
         usage = cmd_name
         for arg in args:
             arg_name = arg['name']
-            if arg.get('optional', False):
-                usage += f" [<{arg_name}>]"
-            else:
-                usage += f" <{arg_name}>"
-        usage += f" # {summary}"
-        
+            usage += f" [{'<' + arg_name + '>' if not arg.get('optional') else '[<' + arg_name + '>]'}]"
+
+        usage_line = f'{usage} # {summary}'
+
         help_impl = f"""/**
  * Print help for {cmd_name} command
  */
 void print_{cname}_help(void) {{
-    r_cons_println("{usage}");"""
-        
-        # Add examples if present
-        details = cmd.get('details', [])
-        for detail in details:
+    r_cons_println("{usage_line}");"""
+
+        # Examples
+        for detail in cmd.get('details', []):
             if detail.get('name') == 'Examples':
                 help_impl += '\n    r_cons_println("\\nExamples:");'
                 for entry in detail.get('entries', []):
                     text = entry.get('text', '').replace('"', '\\"')
                     comment = entry.get('comment', '').replace('"', '\\"')
                     help_impl += f'\n    r_cons_println("{text}  # {comment}");'
-        
+
         help_impl += '\n}\n'
         implementations.append(help_impl)
-    
-    # Group help functions
-    for group_name, group_commands in command_groups.items():
+
+    # Group Help Functions
+    for group_name, group_data in command_groups.items():
         group_cname = camel_to_snake(group_name)
-        
+        group_commands = group_data.get('commands', [])
+
         help_impl = f"""/**
  * Print help for {group_name} command group
  */
 void print_{group_cname}_group_help(void) {{
     r_cons_println("{group_name} Command Group");
     r_cons_println("{'=' * (len(group_name) + 14)}");"""
-        
-        # Filter commands to show only top-level ones (not subcommands of nested groups)
-        commands_to_show = []
-        nested_group_prefixes = [cmd_name for cmd_name in command_groups.keys() 
-                                if cmd_name != group_name and cmd_name.startswith(group_name)]
-        
+
+        # Filter out subcommands of nested groups
+        nested_prefixes = [
+            name for name in command_groups if name != group_name and name.startswith(group_name)
+        ]
+
         for cmd in sorted(group_commands, key=lambda x: x.get('name', '')):
-            cmd_name = cmd.get('name', '')
-            summary = cmd.get('summary', '')
-            
-            # Skip this command if it's a subcommand of a nested group
-            is_subcommand = False
-            for prefix in nested_group_prefixes:
-                if cmd_name.startswith(prefix) and len(cmd_name) > len(prefix):
-                    is_subcommand = True
-                    break
-            
-            if not is_subcommand:
-                commands_to_show.append((cmd_name, summary))
-        
-        # Add commands to help
-        for cmd_name, summary in commands_to_show:
-            help_impl += f'\n    r_cons_println("{cmd_name:<12} - {summary}");'
-        
+            cmd_name = cmd.get('name', cmd.get('group', ''))
+            summary = cmd.get('summary', '').replace('"', '\\"')
+            if not any(cmd_name.startswith(prefix) and len(cmd_name) > len(prefix) for prefix in nested_prefixes):
+                help_impl += f'\n    r_cons_println("{cmd_name:<12} - {summary}");'
+
         help_impl += '''
     r_cons_println("");
     r_cons_println("Use <command>? to get detailed help for a specific command");
 }
 '''
         implementations.append(help_impl)
-        
-        # Dual help functions for groups with same-named commands
+
+        # Dual Help Function
         if group_name in dual_role_commands:
-            dual_cmd = dual_role_commands[group_name]
-            dual_cname = dual_cmd['cname']
-            
-            # Calculate separator length
-            separator_len = len('Available commands in ' + group_name + ' group:')
-            separator = '=' * separator_len
-            
+            dual_cmd = dual_role_commands[group_name]['command']
+            dual_cname = dual_cmd.get('cname')
+            dual_summary = dual_cmd.get('summary', '').replace('"', '\\"')
+            separator = '=' * (len("Available commands in " + group_name + " group:"))
+
             dual_help = f"""/**
  * Print dual help for {group_name} (both group and command)
  */
-void print_{group_name}_dual_help(void) {{
+void print_{group_cname}_dual_help(void) {{
     r_cons_println("{group_name} - Dual Role Command");
     r_cons_println("{'=' * (len(group_name) + 19)}");
     r_cons_println("This command has two roles:");
@@ -291,50 +391,68 @@ void print_{group_name}_dual_help(void) {{
     r_cons_println("   Use '{group_name}?' to see group help");
     r_cons_println("");
     r_cons_println("2. As a specific command:");
-    r_cons_println("   {dual_cmd.get('summary', '')}");
-    r_cons_println("   Use '{group_name}' followed by two question marks to see command-specific help");
+    r_cons_println("   {dual_summary}");
+    r_cons_println("   Use '{group_name}\\?\\?' to see command-specific help");
     r_cons_println("");
     r_cons_println("Available commands in {group_name} group:");
     r_cons_println("{separator}");"""
-            
-            # Add all commands in the group to the dual help
+
             for cmd in sorted(group_commands, key=lambda x: x.get('name', '')):
                 cmd_name = cmd.get('name', '')
-                summary = cmd.get('summary', '')
+                summary = cmd.get('summary', '').replace('"', '\\"')
                 dual_help += f'\n    r_cons_println("{cmd_name:<12} - {summary}");'
-            
+
             dual_help += """
     r_cons_println("");
     r_cons_println("Use <command>? to get detailed help for a specific command");
 }
 """
             implementations.append(dual_help)
-    
+
     return '\n'.join(implementations)
 
-def generate_dispatchers(commands, command_groups, dual_role_commands):
-    """Generate dispatcher implementations"""
+def generate_dispatchers(
+    simple_commands: List[Dict[str, Any]],
+    command_groups: Dict[str, Any],
+    dual_role_commands: Dict[str, Dict[str, Any]]
+) -> str:
+    """
+    Generate dispatcher C function implementations.
+
+    Parameters:
+    ----------
+    simple_commands : list of dict
+        List of standalone command definitions.
+
+    command_groups : dict
+        Mapping of group names to group metadata and their subcommands.
+
+    dual_role_commands : dict
+        Dictionary of command groups that also act as individual commands.
+
+    Returns:
+    -------
+    str
+        The generated dispatcher implementations as a single C source string.
+    """
     implementations = []
     processed = set()
-    
-    # Root command dispatchers
-    for cmd in commands:
-        if 'cname' not in cmd:
+
+    # Dispatchers for individual commands
+    for cmd in simple_commands:
+        cname = cmd.get('cname')
+        cmd_name = cmd.get('name')
+        if not cname or cmd_name in processed:
             continue
-            
-        cmd_name = cmd['name']
-        # Skip if this is a group command or already processed, UNLESS it's a dual-role command
-        if (cmd_name in command_groups and cmd_name not in dual_role_commands) or cmd_name in processed:
+
+        # Skip if it's only a group (unless dual-role)
+        if cmd_name in command_groups and cmd_name not in dual_role_commands:
             continue
+
         processed.add(cmd_name)
-        
-        cname = cmd['cname']
-        summary = cmd.get('summary', '')
-        args = cmd.get('args', [])
-        
-        # Count required args
-        required_count = sum(1 for arg in args if not arg.get('optional', False))
-        
+        summary = cmd.get('summary', '').replace('"', '\\"')
+        required_count = sum(1 for arg in cmd.get('args', []) if not arg.get('optional'))
+
         impl = f"""/**
  * "{cmd_name}" - Dispatcher
  * {summary}
@@ -346,55 +464,49 @@ R_IPI RCmdStatus r_{cname}_dispatcher(RCore* core, int argc, const char** argv) 
         return R_CMD_STATUS_OK;
     }}
 
-    // Validate command arguments - if insufficient, show help and return error
+    // Validate command arguments
     if (!validate_arguments(core, argc, argv, {required_count}, "{cmd_name}", NULL, NULL)) {{
         print_{cname}_help();
         return R_CMD_STATUS_WRONG_ARGS;
     }}
 
-    // Call the actual handler function
     return r_{cname}_handler(core, argc, argv);
 }}
 """
         implementations.append(impl)
-    
-    # Group dispatchers
-    for group_name, group_commands in command_groups.items():
+
+    # Dispatchers for command groups (including dual-role)
+    for group_name, group_data in command_groups.items():
         if group_name in processed:
             continue
         processed.add(group_name)
-        
+
         group_cname = camel_to_snake(group_name)
-        
-        # Check if this group has a dual-role command
+
         if group_name in dual_role_commands:
-            dual_cmd = dual_role_commands[group_name]
+            dual_cmd = dual_role_commands[group_name]['command']
             dual_cname = dual_cmd['cname']
-            required_count = sum(1 for arg in dual_cmd.get('args', []) if not arg.get('optional', False))
-            
+            required_count = sum(1 for arg in dual_cmd.get('args', []) if not arg.get('optional'))
+
             impl = f"""/**
  * "{group_name}" - Dual Role Dispatcher
- * Both a command group and a specific command
+ * Acts as both a command and a group
  */
 R_IPI RCmdStatus r_{group_cname}_dispatcher(RCore* core, int argc, const char** argv) {{
-    // Check for help commands (ends with ? or ??)
+    // Help behavior
     if (argc > 0 && is_help_command(argv[0])) {{
         if (is_double_question_help(argv[0])) {{
-            // Double question mark - show specific command help
             print_{dual_cname}_help();
         }} else {{
-            // Single question mark - show dual help
-            print_{group_name}_dual_help();
+            print_{group_cname}_dual_help();
         }}
         return R_CMD_STATUS_OK;
     }}
 
-    // Check if we have sufficient arguments for the specific command
+    // Check for enough args to treat as individual command
     if (validate_arguments(core, argc, argv, {required_count}, "{group_name}", NULL, NULL)) {{
-        // Sufficient arguments - call the specific command handler
         return r_{dual_cname}_handler(core, argc, argv);
     }} else {{
-        // Insufficient arguments - show help for the specific command
         print_{dual_cname}_help();
         return R_CMD_STATUS_WRONG_ARGS;
     }}
@@ -403,45 +515,55 @@ R_IPI RCmdStatus r_{group_cname}_dispatcher(RCore* core, int argc, const char** 
         else:
             impl = f"""/**
  * "{group_name}" - Group Dispatcher
- * Command group dispatcher
+ * Dispatches help for command group
  */
 R_IPI RCmdStatus r_{group_cname}_dispatcher(RCore* core, int argc, const char** argv) {{
-    (void)core;  // Mark unused parameter
-    
-    // Check if this is a help command (ends with ? or ??)
+    (void)core;
+
     if (argc > 0 && is_help_command(argv[0])) {{
         print_{group_cname}_group_help();
         return R_CMD_STATUS_OK;
     }}
 
-    // This is a command group - just show group help
     print_{group_cname}_group_help();
     return R_CMD_STATUS_OK;
 }}
 """
         implementations.append(impl)
-    
+
     return '\n'.join(implementations)
 
-def generate_global_dispatcher(commands, command_groups, dual_role_commands):
-    """Generate the global command dispatcher"""
-    
-    # Generate help command routing
+def generate_global_dispatcher(
+    simple_commands: List[Dict[str, Any]],
+    command_groups: Dict[str, Any],
+    dual_role_commands: Dict[str, Dict[str, Any]]
+) -> Tuple[str, str]:
+    """
+    Generate help routing and command routing C code for the global dispatcher.
+
+    Returns:
+    -------
+    (str, str)
+        help_routing_code, command_routing_code
+    """
     help_routing = []
-    
-    # Handle dual-role commands first (they need special handling)
-    for group_name in dual_role_commands:
+    command_routing = []
+    processed = set()
+
+    # --- Help Routing ---
+    for group_name, dual_data in dual_role_commands.items():
+        cname = camel_to_snake(dual_data['command']['cname'])
         help_routing.append(f"""    if (strcmp(base_cmd, "{group_name}") == 0) {{
         if (is_double_question_help(argv[0])) {{
-            print_{dual_role_commands[group_name]['cname']}_help();
+            print_{cname}_help();
         }} else {{
-            print_{group_name}_dual_help();
+            print_{camel_to_snake(group_name)}_dual_help();
         }}
         free(argv_buf[0]);
         return R_CMD_STATUS_OK;
     }}""")
-    
-    # Handle other group commands
+
+    # Dispatchers for command groups
     for group_name in command_groups:
         if group_name not in dual_role_commands:
             group_cname = camel_to_snake(group_name)
@@ -450,72 +572,66 @@ def generate_global_dispatcher(commands, command_groups, dual_role_commands):
         free(argv_buf[0]);
         return R_CMD_STATUS_OK;
     }}""")
-    
-    # Handle individual commands (including subcommands)
-    for cmd in commands:
-        cmd_name = cmd.get('name', '')
-        cname = cmd.get('cname', '')
-        
+
+    # Fnally dispatchers for all simple commands
+    for cmd in simple_commands:
+        cmd_name = cmd.get('name')
+        cname = cmd.get('cname')
         if not cname or cmd_name in dual_role_commands or cmd_name in command_groups:
             continue
-            
         help_routing.append(f"""    if (strcmp(base_cmd, "{cmd_name}") == 0) {{
         print_{cname}_help();
         free(argv_buf[0]);
         return R_CMD_STATUS_OK;
     }}""")
-    
-    # Generate command routing
-    command_routing = []
-    processed = set()
-    
-    # Individual commands (not groups)
-    for cmd in commands:
-        if 'cname' not in cmd:
+
+    # --- Command Routing ---
+    for cmd in simple_commands:
+        cmd_name = cmd.get('name')
+        cname = cmd.get('cname')
+        if not cname or cmd_name in processed:
             continue
-            
-        cmd_name = cmd['name']
-        # Skip if this is a group command or already processed, UNLESS it's a dual-role command
-        if (cmd_name in command_groups and cmd_name not in dual_role_commands) or cmd_name in processed:
+
+        # Skip group-only commands unless dual-role
+        if cmd_name in command_groups and cmd_name not in dual_role_commands:
             continue
+
         processed.add(cmd_name)
-        
-        cname = cmd['cname']
         command_routing.append(f"""    if (strcmp(argv[0], "{cmd_name}") == 0) {{
         RCmdStatus status = r_{cname}_dispatcher(core, argc, argv);
         free(argv_buf[0]);
         return status;
     }}""")
-    
-    # Group commands
+
     for group_name in command_groups:
         if group_name in processed:
             continue
         processed.add(group_name)
-        
         group_cname = camel_to_snake(group_name)
         command_routing.append(f"""    if (strcmp(argv[0], "{group_name}") == 0) {{
         RCmdStatus status = r_{group_cname}_dispatcher(core, argc, argv);
         free(argv_buf[0]);
         return status;
     }}""")
-    
+
     return '\n'.join(help_routing), '\n'.join(command_routing)
 
-def generate_source_file(commands, command_groups, dual_role_commands):
+def generate_source_file(simple_commands, command_groups, dual_role_commands):
     """Generate CmdDesc.c"""
     current_date = time.strftime('%d %B %Y')
-    
-    help_implementations = generate_help_implementations(commands, command_groups, dual_role_commands)
-    dispatcher_implementations = generate_dispatchers(commands, command_groups, dual_role_commands)
-    help_routing, command_routing = generate_global_dispatcher(commands, command_groups, dual_role_commands)
-    
+
+    # Generate code blocks
+    help_implementations = generate_help_implementations(simple_commands, command_groups, dual_role_commands)
+    dispatcher_implementations = generate_dispatchers(simple_commands, command_groups, dual_role_commands)
+    help_routing, command_routing = generate_global_dispatcher(simple_commands, command_groups, dual_role_commands)
+
+    # Compose final C source file
     source_content = f"""/**
  * @file : CmdDesc.c
  * @date : {current_date}
  * @author : Generated from YAML command descriptions
  * @copyright: Copyright (c) 2024 RevEngAI. All Rights Reserved.
- * */
+ */
 
 #include "CmdDesc.h"
 #include <Reai/Api.h>
@@ -546,19 +662,19 @@ static int split_command_into_args(const char* command, char* argv_buf[], int ma
     if (!command || !argv_buf || max_args < 1) {{
         return 0;
     }}
-    
+
     int argc = 0;
     char* cmd_copy = strdup(command);
     if (!cmd_copy) {{
         return 0;
     }}
-    
+
     char* token = strtok(cmd_copy, " ");
     while (token && argc < max_args) {{
         argv_buf[argc++] = token;
         token = strtok(NULL, " ");
     }}
-    
+
     return argc;
 }}
 
@@ -583,33 +699,33 @@ static bool is_double_question_help(const char* cmd) {{
  */
 static char* extract_base_command(const char* cmd) {{
     if (!cmd) return NULL;
-    
+
     static char base_cmd[32];
     strncpy(base_cmd, cmd, sizeof(base_cmd) - 1);
     base_cmd[sizeof(base_cmd) - 1] = '\\0';
-    
+
     char* question_mark = strchr(base_cmd, '?');
     if (question_mark) {{
         *question_mark = '\\0';
     }}
-    
+
     return base_cmd;
 }}
 
 /**
  * Validate command arguments
  */
-static bool validate_arguments(RCore* core, int argc, const char** argv, int required_count, 
+static bool validate_arguments(RCore* core, int argc, const char** argv, int required_count,
                               const char* cmd_name, const char* arg_types[], bool optional[]) {{
-    (void)core;     // Mark unused parameters
+    (void)core;
     (void)cmd_name;
     (void)arg_types;
     (void)optional;
-    
+
     if (argc <= 0 || !argv || !argv[0]) {{
         return false;
     }}
-    
+
     return argc - 1 >= required_count;
 }}
 
@@ -630,43 +746,43 @@ R_API RCmdStatus reai_global_command_dispatcher(RCore* core, const char* command
         DISPLAY_ERROR("Invalid command or core pointer");
         return R_CMD_STATUS_INVALID;
     }}
-    
+
     char* argv_buf[MAX_ARGS] = {{0}};
     int argc = split_command_into_args(command, argv_buf, MAX_ARGS);
-    
+
     if (argc == 0) {{
         DISPLAY_ERROR("Empty command");
         return R_CMD_STATUS_INVALID;
     }}
-    
+
     const char* argv[MAX_ARGS];
     for (int i = 0; i < argc; i++) {{
         argv[i] = argv_buf[i];
     }}
-    
+
     // Check for root help
-    if (strcmp(argv[0], "?") == 0 || strcmp(argv[0], "help") == 0 || strcmp(argv[0], "RE?") == 0) {{
+    if (strcmp(argv[0], "RE?") == 0) {{
         print_root_help();
         free(argv_buf[0]);
         return R_CMD_STATUS_OK;
     }}
-    
+
     // Handle help commands with question marks
     if (is_help_command(argv[0])) {{
         char* base_cmd = extract_base_command(argv[0]);
-        
+
 {help_routing}
-        
-        // If no specific help found, show root help
+
+        // Fallback if command not found
         print_root_help();
         free(argv_buf[0]);
         return R_CMD_STATUS_OK;
     }}
-    
+
     // Route to appropriate dispatcher
 {command_routing}
-    
-    // Command not found
+
+    // Unknown command
     RCmdStatus status = r_show_help_handler(core, argc, argv);
     free(argv_buf[0]);
     return status;
@@ -678,25 +794,24 @@ R_API RCmdStatus reai_global_command_dispatcher(RCore* core, const char* command
 /* Dispatcher implementations */
 {dispatcher_implementations}
 """
-    
     return source_content
 
 def main():
     """Main function"""
-    commands, command_groups, dual_role_commands = load_commands()
-    
+    simple_commands, command_groups, dual_role_commands = load_commands()
+
     # Generate files
-    header_content = generate_header_file(commands, command_groups, dual_role_commands)
-    source_content = generate_source_file(commands, command_groups, dual_role_commands)
-    
+    header_content = generate_header_file(simple_commands, command_groups, dual_role_commands)
+    source_content = generate_source_file(simple_commands, command_groups, dual_role_commands)
+
     # Write files
     with open(os.path.join('Source', 'Radare', 'CmdDesc.h'), 'w') as f:
         f.write(header_content)
     print("Generated Source/Radare/CmdDesc.h")
-    
+
     with open(os.path.join('Source', 'Radare', 'CmdDesc.c'), 'w') as f:
         f.write(source_content)
     print("Generated Source/Radare/CmdDesc.c")
 
 if __name__ == "__main__":
-    main() 
+    main()

@@ -1,10 +1,8 @@
 name: Build Linux
 
 on:
-  push:
-    branches: [ main, master, develop ]
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [ "**" ]
   workflow_dispatch:
 
 jobs:
@@ -56,7 +54,7 @@ jobs:
       run: |
         chmod +x Scripts/Build.sh
         source .venv/bin/activate
-        bash Scripts/Build.sh
+        bash Scripts/Build.sh "${{ github.head_ref }}"
         
     - name: Collect runtime binaries and installer
       run: |
