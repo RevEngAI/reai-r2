@@ -1,6 +1,6 @@
 #!/bin/bash
 
-branchName = ${1:-master}
+branchName=${1:-master}
 
 echo "Building from branch $branchName"
 

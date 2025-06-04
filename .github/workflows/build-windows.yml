@@ -36,7 +36,7 @@ jobs:
         
         # Run the build script
         Set-ExecutionPolicy Bypass -Scope Process -Force
-        .\Scripts\Build.ps1 --branchName "${{ github.head_ref }}"
+        .\Scripts\Build.ps1 "${{ github.head_ref }}"
       shell: powershell
       
     - name: Collect runtime binaries and installer
