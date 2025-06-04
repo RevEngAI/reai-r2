@@ -1,7 +1,7 @@
 name: Build Windows
 
 on:
-  push:
+  pull_request:
     branches: [ "**" ]
   workflow_dispatch:
 
