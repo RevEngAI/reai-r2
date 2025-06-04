@@ -6,6 +6,37 @@
 # Generate command descriptors
 # add_subdirectory(CmdGen)
 
+# Get Git tag
+execute_process(COMMAND git describe --tags --abbrev=0
+                OUTPUT_VARIABLE GIT_TAG
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET)
+
+# Get Git branch
+execute_process(COMMAND git rev-parse --abbrev-ref HEAD
+                OUTPUT_VARIABLE GIT_BRANCH
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET)
+
+# Get Git commit hash (short)
+execute_process(COMMAND git rev-parse --short HEAD
+                OUTPUT_VARIABLE GIT_COMMIT
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET)
+
+# Compose version string
+set(PLUGIN_VERSION "${GIT_TAG}-${GIT_BRANCH}-${GIT_COMMIT}")
+
+# Optionally print
+message(STATUS "Plugin version: ${PLUGIN_VERSION}")
+
+# Generate a version header
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/PluginVersion.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/PluginVersion.h
+    @ONLY
+)
+
 # Custom command to generate CmdDesc.h and CmdDesc.c during configure step
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/CmdDesc.h ${CMAKE_CURRENT_SOURCE_DIR}/CmdDesc.c

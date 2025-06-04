@@ -141,7 +141,7 @@ Write-Host "  • Environment script created: $envScript" -ForegroundColor White
 Write-Host "`n🚀 To use the plugins:" -ForegroundColor Cyan
 Write-Host "  1. For command line radare2: plugins should work automatically" -ForegroundColor White
 Write-Host "  2. Or run the environment script in new PowerShell sessions:" -ForegroundColor White
-Write-Host "     & `"$envScript`"" -ForegroundColor Gray
+Write-Host "     `& `"$envScript`"" -ForegroundColor Gray
 
 Write-Host "`n🔧 To test the installation:" -ForegroundColor Cyan
 Write-Host "  radare2.exe -c 'reai help' C:\Windows\System32\notepad.exe" -ForegroundColor Gray

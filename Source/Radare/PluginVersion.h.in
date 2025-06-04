@@ -1,0 +1,7 @@
+#ifndef REAI_RADARE2_PLUGIN_VERSION
+#define REAI_RADARE2_PLUGIN_VERSION
+
+// Configured from CMakeLists.txt to tag-branch-commit format
+#define REAI_PLUGIN_VERSION "@PLUGIN_VERSION@"
+
+#endif // REAI_RADARE2_PLUGIN_VERSION
