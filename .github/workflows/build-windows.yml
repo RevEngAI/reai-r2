@@ -1,0 +1,184 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v1.1
+      
+    - name: Setup Visual Studio Developer Environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+        
+    - name: Build project with Python venv
+      run: |
+        # Create and activate virtual environment
+        python -m venv .venv
+        .\.venv\Scripts\Activate.ps1
+        
+        # Install Python dependencies
+        python -m pip install --upgrade pip
+        python -m pip install pyyaml
+        
+        # Verify PyYAML is available
+        python -c "import yaml; print('PyYAML is available in venv')"
+        
+        # Run the build script
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        .\Scripts\Build.ps1
+      shell: powershell
+      
+    - name: Collect runtime binaries and installer
+      run: |
+        New-Item -ItemType Directory -Force -Path "upload-staging"
+        
+        $InstallPath = "$env:USERPROFILE\.local\RevEngAI\Radare2\Install"
+        
+        Write-Host "=== Contents of Install Directory ==="
+        if (Test-Path $InstallPath) {
+          Get-ChildItem -Recurse $InstallPath | Select-Object -First 30 | ForEach-Object { Write-Host $_.FullName }
+          
+          Write-Host "`n=== Collecting Our Built Libraries (.dll) ==="
+          # Collect only our built libraries (exclude radare2 system DLLs)
+          Get-ChildItem -Recurse $InstallPath -Filter "*.dll" | Where-Object { 
+            $_.Name -notlike "r_*.dll" -and $_.Name -notlike "radare2*.dll" 
+          } | ForEach-Object {
+            Copy-Item $_.FullName "upload-staging\"
+            Write-Host "Copied DLL: $($_.Name)"
+          }
+          
+          Write-Host "`n=== Collecting Our Built Import Libraries (.lib) ==="
+          # Collect import libraries for our built libraries (exclude radare2 system LIBs)
+          Get-ChildItem -Recurse $InstallPath -Filter "*.lib" | Where-Object { 
+            $_.Name -notlike "r_*.lib" -and $_.Name -notlike "radare2*.lib" 
+          } | ForEach-Object {
+            Copy-Item $_.FullName "upload-staging\"
+            Write-Host "Copied LIB: $($_.Name)"
+          }
+          
+          # Look specifically for the plugin in radare2 plugin directory
+          Write-Host "`n=== Looking for reai_radare plugin ==="
+          $PluginFound = $false
+          
+          # Try to get plugin directory from radare2
+          try {
+            $PluginDir = & "$InstallPath\bin\radare2.exe" -H R2_USER_PLUGINS 2>$null
+            if ($PluginDir -and (Test-Path $PluginDir)) {
+              Write-Host "Plugin directory from radare2: $PluginDir"
+              Get-ChildItem $PluginDir -Filter "*reai*" -ErrorAction SilentlyContinue | ForEach-Object {
+                Copy-Item $_.FullName "upload-staging\"
+                Write-Host "Copied plugin from R2_USER_PLUGINS: $($_.Name)"
+                $PluginFound = $true
+              }
+            }
+          } catch {
+            Write-Host "Could not get plugin directory from radare2 command"
+          }
+          
+          # If not found, search install path thoroughly for the plugin
+          if (-not $PluginFound) {
+            Write-Host "Searching install path for reai_radare plugin..."
+            Get-ChildItem -Recurse $InstallPath -Filter "*reai_radare*" -ErrorAction SilentlyContinue | ForEach-Object {
+              Copy-Item $_.FullName "upload-staging\"
+              Write-Host "Found plugin in install path: $($_.Name)"
+              $PluginFound = $true
+            }
+          }
+          
+          # Also search for any .dll files containing "reai" that might be the plugin
+          if (-not $PluginFound) {
+            Write-Host "Searching for any reai plugin files..."
+            Get-ChildItem -Recurse $InstallPath -Filter "*reai*.dll" -ErrorAction SilentlyContinue | Where-Object {
+              $_.Name -like "*radare*" -or $_.Name -like "*plugin*" -or $_.Name -eq "reai_radare.dll"
+            } | ForEach-Object {
+              Copy-Item $_.FullName "upload-staging\"
+              Write-Host "Found potential plugin: $($_.Name)"
+              $PluginFound = $true
+            }
+          }
+        } else {
+          Write-Host "Install path not found: $InstallPath"
+        }
+        
+        # Search build directories for any missed plugin files (.dll and .lib)
+        Write-Host "`n=== Searching build directories for plugin files ==="
+        $BuildPluginFound = $false
+        Get-ChildItem -Recurse . -Filter "*reai_radare*" -ErrorAction SilentlyContinue | ForEach-Object {
+          if ($_.FullName -notlike "*upload-staging*") {  # Don't copy from staging folder to itself
+            Copy-Item $_.FullName "upload-staging\" -ErrorAction SilentlyContinue
+            Write-Host "Found in build: $($_.Name)"
+            $BuildPluginFound = $true
+          }
+        }
+        
+        # If still no plugin found, do a broader search
+        if (-not $BuildPluginFound) {
+          Write-Host "Doing broader search for plugin in build directories..."
+          Get-ChildItem -Recurse . -Filter "*.dll" -ErrorAction SilentlyContinue | Where-Object {
+            ($_.Name -like "*reai*" -and ($_.Name -like "*radare*" -or $_.Name -like "*plugin*")) -and
+            $_.FullName -notlike "*upload-staging*" -and 
+            $_.FullName -notlike "*Dependencies*" -and
+            $_.Name -notlike "r_*.dll"
+          } | ForEach-Object {
+            Copy-Item $_.FullName "upload-staging\" -ErrorAction SilentlyContinue
+            Write-Host "Found potential plugin in build: $($_.Name)"
+          }
+        }
+        
+        # Search build directories for any missed reai library files
+        Write-Host "`n=== Searching build directories for reai library files ==="
+        @("*reai.dll", "*reai.lib") | ForEach-Object {
+          Get-ChildItem -Recurse . -Filter $_ -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.FullName -notlike "*upload-staging*") {  # Don't copy from staging folder to itself
+              Copy-Item $_.FullName "upload-staging\" -ErrorAction SilentlyContinue
+              Write-Host "Found reai library: $($_.Name)"
+            }
+          }
+        }
+        
+        # Copy installer and README directly to staging (no Scripts/ subdirectory)
+        Copy-Item "Scripts\install-windows.ps1" "upload-staging\"
+        Copy-Item "Scripts\README.md" "upload-staging\"
+        
+        Write-Host "`n=== Final Package Contents ==="
+        $files = Get-ChildItem "upload-staging"
+        if ($files) {
+          $files | Sort-Object Name | ForEach-Object { Write-Host "$($_.Name) ($($_.Length) bytes)" }
+          
+          # Check if we have the essential files
+          $hasReaiDll = $files | Where-Object { $_.Name -eq "reai.dll" }
+          $hasPlugin = $files | Where-Object { $_.Name -like "*reai_radare*" -or ($_.Name -like "*reai*" -and $_.Name -like "*radare*") }
+          
+          Write-Host "`n=== Build Summary ==="
+          Write-Host "✅ reai.dll: $(if ($hasReaiDll) { 'Found' } else { 'MISSING' })"
+          Write-Host "$(if ($hasPlugin) { '✅' } else { '❌' }) Plugin: $(if ($hasPlugin) { 'Found' } else { 'MISSING' })"
+          
+          if (-not $hasPlugin) {
+            Write-Host "WARNING: reai_radare plugin was not found! This is a critical issue."
+            exit 1
+          }
+        } else {
+          Write-Host "ERROR: No artifacts were collected!"
+          exit 1
+        }
+      shell: powershell
+      
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: reai-r2-windows-binaries
+        path: upload-staging/
+        if-no-files-found: error

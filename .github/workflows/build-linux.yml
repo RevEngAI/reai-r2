@@ -1,0 +1,91 @@
+name: Build Linux
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          ninja-build \
+          pkg-config \
+          python3 \
+          python3-pip \
+          python3-yaml \
+          git \
+          wget \
+          curl \
+          libcurl4-openssl-dev
+          
+    - name: Install radare2
+      run: |
+        # Install both runtime and development packages
+        wget -qO- https://github.com/radareorg/radare2/releases/download/5.9.8/radare2_5.9.8_amd64.deb -O /tmp/radare2.deb
+        wget -qO- https://github.com/radareorg/radare2/releases/download/5.9.8/radare2-dev_5.9.8_amd64.deb -O /tmp/radare2-dev.deb
+        
+        # Install runtime package first, then dev package
+        sudo dpkg -i /tmp/radare2.deb || sudo apt-get install -f -y
+        sudo dpkg -i /tmp/radare2-dev.deb || sudo apt-get install -f -y
+        
+        # Verify installation
+        radare2 -v
+        pkg-config --cflags r_core
+        
+    - name: Install Python dependencies
+      run: |
+        python3 -m venv .venv
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+        python -m pip install pyyaml
+        
+    - name: Build project
+      run: |
+        chmod +x Scripts/Build.sh
+        source .venv/bin/activate
+        bash Scripts/Build.sh
+        
+    - name: Collect runtime binaries and installer
+      run: |
+        mkdir -p upload-staging
+        
+        # Show what was built
+        echo "=== Contents of $HOME/.local ==="
+        find $HOME/.local -type f | head -20
+        
+        # Collect only shared libraries (.so files) directly to staging
+        find $HOME/.local/lib -name "*.so*" -exec cp {} upload-staging/ \; 2>/dev/null || true
+        
+        # Collect radare2 plugin directly to staging
+        PLUGIN_DIR=$(radare2 -H R2_USER_PLUGINS 2>/dev/null) || PLUGIN_DIR=""
+        if [ -n "$PLUGIN_DIR" ] && [ -d "$PLUGIN_DIR" ]; then
+          find "$PLUGIN_DIR" -name "*reai*" -exec cp {} upload-staging/ \; 2>/dev/null || true
+        fi
+        
+        # Copy installer and README directly to staging (no Scripts/ subdirectory)
+        cp Scripts/install-linux.sh upload-staging/
+        cp Scripts/README.md upload-staging/
+        
+        # Show what we collected
+        echo "=== Final Package Contents ==="
+        find upload-staging -type f | sort
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: reai-r2-linux-binaries
+        path: upload-staging/
+        if-no-files-found: warn 

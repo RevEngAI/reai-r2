@@ -10,23 +10,14 @@
 # Dependencies
 # - MSVC Compiler Toolchain
 
-# Escape backslashes becuase Windows is idiot af
-$CWD = $PWD.Path -replace '\\', '\\'
-
-$BaseDir = "~\\.local\\RevEngAI\\Radare2"
+$BaseDir = "$($HOME -replace '\\', '\\')\\.local\\RevEngAI\\Radare2"
 $BuildDir = "$BaseDir\\Build"
 $InstallPath = "$BaseDir\\Install"
 $DownPath = "$BuildDir\\Artifacts"
 $DepsPath = "$BuildDir\\Dependencies"
 
-# Remove install directory if already exists to avoid clashes
-if ((Test-Path "$InstallPath")) {
-    Remove-Item -LiteralPath "$InstallPath" -Force -Recurse
-}
-
-# Setup build directory structure
-if ((Test-Path "$BuildDir")) {
-    Remove-Item -LiteralPath "$BuildDir" -Force -Recurse
+if (Test-Path -LiteralPath "$BaseDir") {
+    Remove-Item -LiteralPath "$BaseDir" -Force -Recurse
 }
 
 md "$BaseDir"
@@ -106,8 +97,6 @@ Write-Host "Now fetching plugin dependencies, and then building and installing t
 $DepsList = @"
 
 https://curl.se/download/curl-8.13.0.zip
-https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.18.zip
-https://github.com/brightprogrammer/tomlc99/archive/refs/tags/v1.zip
 https://github.com/RevEngAI/creait/archive/refs/heads/master.zip
 https://github.com/RevEngAI/reai-r2/archive/refs/heads/master.zip
 "@
@@ -124,9 +113,7 @@ $pkgs = @(
     # Final Destination         Downloaded archive name                Subfolder name where actually extracted
     @{name = "curl";    path = "$DownPath\\curl-8.13.0.zip";           subfolderName="curl-8.13.0"},
     @{name = "reai-r2"; path = "$DownPath\\reai-r2-master.zip";        subfolderName="reai-r2-master"},
-    @{name = "tomlc99"; path = "$DownPath\\tomlc99-1.zip";             subfolderName="tomlc99-1"},
-    @{name = "creait";  path = "$DownPath\\creait-master.zip";         subfolderName="creait-master"},
-    @{name = "cjson";   path = "$DownPath\\cJSON-1.7.18.zip";          subfolderName="cJSON-1.7.18"}
+    @{name = "creait";  path = "$DownPath\\creait-master.zip";         subfolderName="creait-master"}
 )
 # Unpack a dependency to be built later on
 # These temporarily go into dependencies directory
@@ -157,39 +144,10 @@ cmake -S "$DepsPath\\curl" -A x64 `
     -D CURL_USE_LIBPSL=OFF `
     -D CMAKE_PREFIX_PATH="$InstallPath" `
     -D CMAKE_INSTALL_PREFIX="$InstallPath" `
-    -D BUILD_SHARED_LIBS=OFF `
     -D CURL_USE_SCHANNEL=ON
 cmake --build "$DepsPath\\curl\\Build" --config Release
 cmake --install "$DepsPath\\curl\\Build" --prefix "$InstallPath" --config Release
 Write-Host Build" & INSTALL libCURL... DONE"
-
-# Prepare creait 
-# Build and install cjson
-Write-Host Build" & INSTALL cJSON..."
-cmake -S "$DepsPath\\cjson" -A x64 `
-    -B "$DepsPath\\cjson\\Build" `
-    -G "Visual Studio 17 2022" `
-    -D CMAKE_C_STANDARD=99 `
-    -D ENABLE_CUSTOM_COMPILER_FLAGS=OFF `
-    -D CMAKE_PREFIX_PATH="$InstallPath" `
-    -D CMAKE_INSTALL_PREFIX="$InstallPath" `
-    -DCMAKE_POLICY_VERSION_MINIMUM="3.5"
-cmake --build "$DepsPath\\cjson\\Build" --config Release
-cmake --install "$DepsPath\\cjson\\Build" --prefix "$InstallPath" --config Release
-Write-Host Build" & INSTALL cJSON... DONE"
-
-# Build and install tomlc99 
-Write-Host Build" & INSTALL tomlc99..."
-cmake -S "$DepsPath\\tomlc99" -A x64 `
-    -B "$DepsPath\\tomlc99\\Build" `
-    -G "Visual Studio 17 2022" `
-    -D CMAKE_C_STANDARD=23 `
-    -D CMAKE_PREFIX_PATH="$InstallPath" `
-    -D CMAKE_INSTALL_PREFIX="$InstallPath" `
-    -DCMAKE_POLICY_VERSION_MINIMUM="3.5"
-cmake --build "$DepsPath\\tomlc99\\Build" --config Release
-cmake --install "$DepsPath\\tomlc99\\Build" --prefix "$InstallPath" --config Release
-Write-Host Build" & INSTALL tomlc99... DONE"
 
 # Build and install creait
 Write-Host Build" & INSTALL creait..."
@@ -197,9 +155,7 @@ cmake -S "$DepsPath\\creait" -A x64 `
     -B "$DepsPath\\creait\\Build" `
     -G "Visual Studio 17 2022" `
     -D CMAKE_PREFIX_PATH="$InstallPath" `
-    -D CMAKE_INSTALL_PREFIX="$InstallPath" `
-    -D BUILD_SHARED_LIBS=OFF `
-    -DCMAKE_POLICY_VERSION_MINIMUM="3.5"
+    -D CMAKE_INSTALL_PREFIX="$InstallPath"
 cmake --build "$DepsPath\\creait\\Build" --config Release
 cmake --install "$DepsPath\\creait\\Build" --prefix "$InstallPath" --config Release
 Write-Host Build" & INSTALL creait... DONE"
@@ -208,11 +164,11 @@ Write-Host Build" & INSTALL creait... DONE"
 cmake -S "$DepsPath\\reai-r2" -A x64 `
     -B "$DepsPath\\reai-r2\\Build" `
     -G "Visual Studio 17 2022" `
+    -D CMAKE_MODULE_PATH="$InstallPath\\lib\\cmake\\Modules" `
     -D CMAKE_PREFIX_PATH="$InstallPath" `
     -D CMAKE_INSTALL_PREFIX="$InstallPath" `
     -D CMAKE_C_FLAGS="/TC" `
-    -D CMAKE_CXX_FLAGS="/TC" `
-    -D CMAKE_POLICY_VERSION_MINIMUM="3.5"
+    -D CMAKE_CXX_FLAGS="/TC"
 cmake --build "$DepsPath\\reai-r2\\Build" --config Release
 cmake --install "$DepsPath\\reai-r2\\Build" --prefix "$InstallPath" --config Release
 Write-Host Build" & INSTALL reai-r2... DONE"

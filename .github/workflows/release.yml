@@ -1,0 +1,291 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag name'
+        required: true
+        default: 'v0.1.0'
+      prerelease:
+        description: 'Mark as prerelease'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Download Linux artifacts
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build-linux.yml
+        name: reai-r2-linux-binaries
+        path: release-artifacts/linux/
+        if_no_artifact_found: warn
+        
+    - name: Download macOS artifacts
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build-macos.yml
+        name: reai-r2-macos-binaries
+        path: release-artifacts/macos/
+        if_no_artifact_found: warn
+        
+    - name: Download Windows artifacts
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build-windows.yml
+        name: reai-r2-windows-binaries
+        path: release-artifacts/windows/
+        if_no_artifact_found: warn
+        
+    - name: Create release packages
+      run: |
+        cd release-artifacts/
+        
+        # List what we downloaded
+        echo "Downloaded artifacts:"
+        find . -type f | sort
+        
+        # Create platform-specific packages
+        if [ -d "linux" ]; then
+          echo "Creating Linux package..."
+          tar -czf "reai-r2-linux.tar.gz" -C linux .
+          echo "✅ Created reai-r2-linux.tar.gz"
+        fi
+        
+        if [ -d "macos" ]; then
+          echo "Creating macOS package..."
+          tar -czf "reai-r2-macos.tar.gz" -C macos .
+          echo "✅ Created reai-r2-macos.tar.gz"
+        fi
+        
+        if [ -d "windows" ]; then
+          echo "Creating Windows package..."
+          cd windows && zip -r "../reai-r2-windows.zip" . && cd ..
+          echo "✅ Created reai-r2-windows.zip"
+        fi
+        
+        # List final packages
+        echo "Created release packages:"
+        ls -la *.tar.gz *.zip 2>/dev/null || echo "No packages were created"
+        
+    - name: Get tag name
+      id: tag_name
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "tag_name=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          echo "prerelease=${{ github.event.inputs.prerelease }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "prerelease=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.tag_name.outputs.tag_name }}
+        name: RevEngAI Radare2 Plugin ${{ steps.tag_name.outputs.tag_name }}
+        draft: false
+        prerelease: ${{ steps.tag_name.outputs.prerelease }}
+        generate_release_notes: true
+        files: |
+          release-artifacts/*.tar.gz
+          release-artifacts/*.zip
+        body: |
+          ## RevEngAI Radare2 Plugin Release ${{ steps.tag_name.outputs.tag_name }}
+          
+          This release contains the RevEngAI plugin for **Radare2** with automated install scripts.
+          
+          ### 📦 Downloads
+          
+          | Platform | Download | Contents |
+          |----------|----------|----------|
+          | 🐧 **Linux** | `reai-r2-linux.tar.gz` | Radare2 plugin + install script |
+          | 🍎 **macOS** | `reai-r2-macos.tar.gz` | Radare2 plugin + install script |
+          | 🪟 **Windows** | `reai-r2-windows.zip` | Radare2 plugin + install script |
+          
+          ### 📋 What's Included
+          
+          **Linux:**
+          - 🔌 `libreai_radare.so` - Radare2 plugin  
+          - 📚 `libreai.so` - RevEngAI runtime library
+          - 🚀 `install-linux.sh` - Automated installer with rpath fixing
+          - 📖 `README.md` - Detailed installation documentation
+          
+          **macOS:**
+          - 🔌 `libreai_radare.so` - Radare2 plugin
+          - 📚 `libreai.dylib` - RevEngAI runtime library
+          - 🚀 `install-macos.sh` - Automated installer with rpath fixing
+          - 📖 `README.md` - Detailed installation documentation
+          
+          **Windows:**
+          - 🔌 `reai_radare.dll` - Radare2 plugin
+          - 🔌 `reai_radare.lib` - Plugin import library
+          - 📚 `reai.dll` + `reai.lib` - RevEngAI runtime library
+          - 🌐 `libcurl.dll` + `libcurl_imp.lib` - HTTP client library
+          - 🚀 `install-windows.ps1` - Automated installer with PATH setup
+          - 📖 `README.md` - Detailed installation documentation
+          
+          ### 🚀 Installation (Recommended)
+          
+          **🎯 Use the included install scripts for best results:**
+          
+          #### Linux
+          ```bash
+          # Download and extract
+          wget https://github.com/RevEngAI/reai-r2/releases/download/${{ steps.tag_name.outputs.tag_name }}/reai-r2-linux.tar.gz
+          tar -xzf reai-r2-linux.tar.gz
+          cd reai-r2-linux
+          
+          # Run automated installer (requires patchelf)
+          sudo apt install patchelf radare2  # Ubuntu/Debian
+          chmod +x install-linux.sh
+          ./install-linux.sh
+          ```
+          
+          #### macOS  
+          ```bash
+          # Download and extract
+          curl -L -O https://github.com/RevEngAI/reai-r2/releases/download/${{ steps.tag_name.outputs.tag_name }}/reai-r2-macos.tar.gz
+          tar -xzf reai-r2-macos.tar.gz
+          cd reai-r2-macos
+          
+          # Run automated installer (requires Xcode tools)
+          brew install radare2  # if not already installed
+          xcode-select --install  # if not already installed
+          chmod +x install-macos.sh
+          ./install-macos.sh
+          ```
+          
+          #### Windows
+          ```powershell
+          # Download and extract (PowerShell)
+          Invoke-WebRequest "https://github.com/RevEngAI/reai-r2/releases/download/${{ steps.tag_name.outputs.tag_name }}/reai-r2-windows.zip" -OutFile "reai-r2-windows.zip"
+          Expand-Archive "reai-r2-windows.zip" -Force
+          cd reai-r2-windows
+          
+          # Run automated installer
+          .\install-windows.ps1
+          ```
+          
+          ### 🛠️ What The Install Scripts Do
+          
+          The install scripts provide **intelligent, platform-specific installation**:
+          
+          - ✅ **Install libraries** to proper user directories (`~/.local/lib/`)
+          - ✅ **Install Radare2 plugin** to `$(radare2 -H R2_USER_PLUGINS)`
+          - ✅ **Fix rpath/library paths** so plugins can find dependencies
+          - ✅ **Set up environment** with helper scripts for easy usage
+          - ✅ **Verify installation** and provide clear success/error messages
+          
+          ### 📋 Manual Installation (Advanced)
+          
+          If you prefer manual installation or the scripts don't work:
+          
+          #### Exact File Locations
+          
+          **Shared Libraries:**
+          - Linux: `~/.local/lib/libreai.so`
+          - macOS: `~/.local/lib/libreai.dylib`  
+          - Windows: `%USERPROFILE%\.local\bin\reai.dll` + `%USERPROFILE%\.local\lib\reai.lib`
+          
+          **Radare2 Plugin:**
+          - All platforms: Copy to `$(radare2 -H R2_USER_PLUGINS)`
+          
+          **Windows Additional Dependencies:**
+          - `libcurl.dll` → `%USERPROFILE%\.local\bin\`
+          - `libcurl_imp.lib` → `%USERPROFILE%\.local\lib\`
+          - `reai_radare.lib` → Plugin directory
+          
+          **⚠️ Important:** On Unix systems, you may need to set environment variables:
+          ```bash
+          export LD_LIBRARY_PATH="$HOME/.local/lib:$LD_LIBRARY_PATH"  # Linux
+          export DYLD_LIBRARY_PATH="$HOME/.local/lib:$DYLD_LIBRARY_PATH"  # macOS
+          ```
+          
+          ### ✅ Verification
+          
+          After installation, verify the plugin works:
+          
+          **Radare2:**
+          ```bash
+          radare2 /bin/ls
+          [0x00000000]> reai help
+          # Should display RevEngAI plugin help
+          ```
+          
+          **Check plugin loading:**
+          ```bash
+          radare2 -c "L" /bin/ls | grep reai
+          # Should show the loaded reai plugin
+          ```
+          
+          ### 📝 Configuration
+          
+          Create a configuration file at `~/.creait`:
+          ```toml
+          api_key = YOUR_REVENGAI_API_KEY
+          host = https://api.reveng.ai
+          ```
+          
+          ### 🔧 Requirements
+          
+          - **Radare2 5.9.8** or compatible version
+          - **Internet connection** for RevEngAI API access
+          - **Valid RevEngAI API key** from https://portal.reveng.ai
+          
+          **Platform-specific:**
+          - **Linux:** `patchelf` tool for rpath fixing (`sudo apt install patchelf`)
+          - **macOS:** Xcode command line tools for rpath fixing (`xcode-select --install`)
+          - **Windows:** PowerShell (included with Windows)
+          
+          ### 🐛 Issues & Support
+          
+          - 📋 **Installation issues:** Check the install script output for detailed error messages
+          - 🔧 **Plugin not loading:** Verify environment variables are set (see install script output)
+          - 🌐 **API issues:** Verify your API key and configuration file
+          - 🐛 **Bug reports:** https://github.com/RevEngAI/reai-r2/issues
+          
+          ### 🔍 Troubleshooting
+          
+          **Plugin not found:**
+          ```bash
+          # Check plugin directory
+          radare2 -H R2_USER_PLUGINS
+          ls "$(radare2 -H R2_USER_PLUGINS)"
+          
+          # Check if plugin file exists
+          ls -la "$(radare2 -H R2_USER_PLUGINS)"/libreai_radare.*
+          ```
+          
+          **Library not found (Unix):**
+          ```bash
+          # macOS
+          otool -L ~/.local/lib/libreai.dylib
+          export DYLD_LIBRARY_PATH="$HOME/.local/lib:$DYLD_LIBRARY_PATH"
+          
+          # Linux
+          ldd ~/.local/lib/libreai.so
+          export LD_LIBRARY_PATH="$HOME/.local/lib:$LD_LIBRARY_PATH"
+          ```
+          
+          **Windows DLL issues:**
+          ```powershell
+          # Check if DLLs are in PATH
+          where reai.dll
+          where libcurl.dll
+          
+          # Add to PATH if needed
+          $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+          ```
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
