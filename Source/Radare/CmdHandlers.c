@@ -40,7 +40,7 @@ R_IPI RCmdStatus r_plugin_initialize_handler (RCore* core, int argc, const char*
 
     // Check if API key is provided
     if (!api_key) {
-        DISPLAY_ERROR("API key not provided. Usage: REi <api_key>");
+        DISPLAY_ERROR ("API key not provided. Usage: REi <api_key>");
         return R_CMD_STATUS_WRONG_ARGS;
     }
 
@@ -51,7 +51,7 @@ R_IPI RCmdStatus r_plugin_initialize_handler (RCore* core, int argc, const char*
     ConfigDeinit (&cfg);
 
     ReloadPluginData();
-    r_cons_println("RevEngAI plugin initialized successfully");
+    r_cons_println ("RevEngAI plugin initialized successfully");
 
     return R_CMD_STATUS_OK;
 }
@@ -63,7 +63,7 @@ R_IPI RCmdStatus r_list_available_ai_models_handler (RCore* core, int argc, cons
     (void)core;
     (void)argc;
     (void)argv;
-    
+
     ModelInfos* models = GetModels();
     VecForeach (models, model, { r_cons_println (model.name.data); });
 
@@ -79,7 +79,7 @@ R_IPI RCmdStatus r_health_check_handler (RCore* core, int argc, const char** arg
     (void)core;
     (void)argc;
     (void)argv;
-    
+
     if (!Authenticate (GetConnection())) {
         r_cons_println ("No connection");
     } else {
@@ -96,26 +96,26 @@ R_IPI RCmdStatus r_health_check_handler (RCore* core, int argc, const char** arg
  * */
 R_IPI RCmdStatus r_upload_bin_handler (RCore* core, int argc, const char** argv) {
     (void)core;
-    
+
     Str file_path = StrInit();
-    
-    if (STR_ARG(file_path, 1)) {
-        Str sha256 = UploadFile(GetConnection(), file_path);
-        
+
+    if (STR_ARG (file_path, 1)) {
+        Str sha256 = UploadFile (GetConnection(), file_path);
+
         if (sha256.length) {
-            r_cons_printf("Successfully uploaded file: %s\n", file_path.data);
-            r_cons_printf("SHA256: %s\n", sha256.data);
-            StrDeinit(&sha256);
-            StrDeinit(&file_path);
+            r_cons_printf ("Successfully uploaded file: %s\n", file_path.data);
+            r_cons_printf ("SHA256: %s\n", sha256.data);
+            StrDeinit (&sha256);
+            StrDeinit (&file_path);
             return R_CMD_STATUS_OK;
         } else {
-            DISPLAY_ERROR("Failed to upload file: %s", file_path.data);
-            StrDeinit(&file_path);
+            DISPLAY_ERROR ("Failed to upload file: %s", file_path.data);
+            StrDeinit (&file_path);
             return R_CMD_STATUS_ERROR;
         }
     } else {
-        DISPLAY_ERROR("Usage: REu <file_path>");
-        StrDeinit(&file_path);
+        DISPLAY_ERROR ("Usage: REu <file_path>");
+        StrDeinit (&file_path);
         return R_CMD_STATUS_WRONG_ARGS;
     }
 }
@@ -135,9 +135,10 @@ RCmdStatus createAnalysis (RCore* core, int argc, const char** argv, bool is_pri
             APPEND_ERROR ("Failed to upload binary");
         } else {
             new_analysis.base_addr = rGetCurrentBinaryBaseAddr (core);
-            new_analysis.functions = VecInitWithDeepCopy_T (&new_analysis.functions, NULL, FunctionInfoDeinit);
+            new_analysis.functions =
+                VecInitWithDeepCopy_T (&new_analysis.functions, NULL, FunctionInfoDeinit);
 
-            RListIter*         fn_iter = NULL;
+            RListIter*     fn_iter = NULL;
             RAnalFunction* fn      = NULL;
             r_list_foreach (core->anal->fcns, fn_iter, fn) {
                 FunctionInfo fi       = {0};
@@ -234,13 +235,14 @@ R_IPI RCmdStatus r_get_basic_function_info_handler (RCore* core, int argc, const
     (void)argv;
 
     if (rCanWorkWithAnalysis (GetBinaryId(), true)) {
-        FunctionInfos functions = GetBasicFunctionInfoUsingBinaryId (GetConnection(), GetBinaryId());
+        FunctionInfos functions =
+            GetBasicFunctionInfoUsingBinaryId (GetConnection(), GetBinaryId());
 
         if (!functions.length) {
             DISPLAY_ERROR ("Failed to get functions from RevEngAI analysis.");
         }
 
-        RTable* table = r_table_new("Functions");
+        RTable* table = r_table_new ("Functions");
         if (!table) {
             DISPLAY_ERROR ("Failed to create the table.");
             return R_CMD_STATUS_ERROR;
@@ -248,7 +250,14 @@ R_IPI RCmdStatus r_get_basic_function_info_handler (RCore* core, int argc, const
 
         r_table_set_columnsf (table, "nsxx", "function_id", "name", "vaddr", "size");
         VecForeachPtr (&functions, fn, {
-            r_table_add_rowf (table, "nsxx", fn->id, fn->symbol.name.data, fn->symbol.value.addr, fn->size);
+            r_table_add_rowf (
+                table,
+                "nsxx",
+                fn->id,
+                fn->symbol.name.data,
+                fn->symbol.value.addr,
+                fn->size
+            );
         });
 
         const char* table_str = r_table_tofancystring (table);
@@ -302,7 +311,8 @@ R_IPI RCmdStatus r_rename_function_handler (RCore* core, int argc, const char** 
     return R_CMD_STATUS_ERROR;
 }
 
-RCmdStatus functionSimilaritySearch (RCore* core, int argc, const char** argv, bool restrict_to_debug) {
+RCmdStatus
+    functionSimilaritySearch (RCore* core, int argc, const char** argv, bool restrict_to_debug) {
     SimilarFunctionsRequest search = SimilarFunctionsRequestInit();
 
     const char* function_name      = NULL;
@@ -323,12 +333,16 @@ RCmdStatus functionSimilaritySearch (RCore* core, int argc, const char** argv, b
         search.debug_include.external_symbols = restrict_to_debug;
 
         Strs cids = StrSplit (&collection_ids_csv, ",");
-        VecForeachPtr (&cids, cid, { VecPushBack (&search.collection_ids, strtoull (cid->data, NULL, 0)); });
+        VecForeachPtr (&cids, cid, {
+            VecPushBack (&search.collection_ids, strtoull (cid->data, NULL, 0));
+        });
         StrDeinit (&collection_ids_csv);
         VecDeinit (&cids);
 
         Strs bids = StrSplit (&binary_ids_csv, ",");
-        VecForeachPtr (&bids, bid, { VecPushBack (&search.binary_ids, strtoull (bid->data, NULL, 0)); });
+        VecForeachPtr (&bids, bid, {
+            VecPushBack (&search.binary_ids, strtoull (bid->data, NULL, 0));
+        });
         StrDeinit (&binary_ids_csv);
         VecDeinit (&bids);
 
@@ -338,7 +352,7 @@ RCmdStatus functionSimilaritySearch (RCore* core, int argc, const char** argv, b
             SimilarFunctions functions = GetSimilarFunctions (GetConnection(), &search);
 
             if (functions.length) {
-                RTable* table = r_table_new("Similar Functions");
+                RTable* table = r_table_new ("Similar Functions");
                 r_table_set_columnsf (
                     table,
                     "snsnn",
@@ -389,7 +403,8 @@ R_IPI RCmdStatus r_function_similarity_search_handler (RCore* core, int argc, co
 /**
  * "REfsd"
  * */
-R_IPI RCmdStatus r_function_similarity_search_restrict_debug_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_function_similarity_search_restrict_debug_handler (RCore* core, int argc, const char** argv) {
     return functionSimilaritySearch (core, argc, argv, true);
 }
 
@@ -493,7 +508,10 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                         StrDeinit (&dname);
                     });
 
-                    LOG_INFO ("aidec.unmatched.functions.length = %zu", aidec.unmatched.functions.length);
+                    LOG_INFO (
+                        "aidec.unmatched.functions.length = %zu",
+                        aidec.unmatched.functions.length
+                    );
                     VecForeachIdx (&aidec.unmatched.functions, function, idx, {
                         Str dname = StrInit();
                         StrPrintf (&dname, "<UNMATCHED_FUNCTION_%llu>", idx);
@@ -501,7 +519,10 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                         StrDeinit (&dname);
                     });
 
-                    LOG_INFO ("aidec.unmatched.strings.length = %zu", aidec.unmatched.strings.length);
+                    LOG_INFO (
+                        "aidec.unmatched.strings.length = %zu",
+                        aidec.unmatched.strings.length
+                    );
                     VecForeachIdx (&aidec.unmatched.strings, string, idx, {
                         Str dname = StrInit();
                         StrPrintf (&dname, "<UNMATCHED_STRING_%llu>", idx);
@@ -517,7 +538,10 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                         StrDeinit (&dname);
                     });
 
-                    LOG_INFO ("aidec.unmatched.external_vars.length = %zu", aidec.unmatched.external_vars.length);
+                    LOG_INFO (
+                        "aidec.unmatched.external_vars.length = %zu",
+                        aidec.unmatched.external_vars.length
+                    );
                     VecForeachIdx (&aidec.unmatched.external_vars, var, idx, {
                         Str dname = StrInit();
                         StrPrintf (&dname, "<EXTERNAL_VARIABLE_%llu>", idx);
@@ -525,7 +549,10 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                         StrDeinit (&dname);
                     });
 
-                    LOG_INFO ("aidec.unmatched.custom_types.length = %zu", aidec.unmatched.custom_types.length);
+                    LOG_INFO (
+                        "aidec.unmatched.custom_types.length = %zu",
+                        aidec.unmatched.custom_types.length
+                    );
                     VecForeachIdx (&aidec.unmatched.custom_types, var, idx, {
                         Str dname = StrInit();
                         StrPrintf (&dname, "<CUSTOM_TYPE_%llu>", idx);
@@ -559,8 +586,18 @@ RCmdStatus collectionSearch (SearchCollectionRequest* search) {
     SearchCollectionRequestDeinit (search);
 
     if (collections.length) {
-        RTable* t = r_table_new("Collections Search Result");
-        r_table_set_columnsf (t, "snnssss", "Name", "Size", "Id", "Scope", "Last Updated", "Model", "Owner");
+        RTable* t = r_table_new ("Collections Search Result");
+        r_table_set_columnsf (
+            t,
+            "snnssss",
+            "Name",
+            "Size",
+            "Id",
+            "Scope",
+            "Last Updated",
+            "Model",
+            "Owner"
+        );
 
         VecForeachPtr (&collections, collection, {
             r_table_add_rowf (
@@ -611,7 +648,8 @@ R_IPI RCmdStatus r_collection_search_handler (RCore* core, int argc, const char*
     return collectionSearch (&search);
 }
 
-R_IPI RCmdStatus r_collection_search_by_binary_name_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_search_by_binary_name_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     SearchCollectionRequest search = SearchCollectionRequestInit();
@@ -622,7 +660,8 @@ R_IPI RCmdStatus r_collection_search_by_binary_name_handler (RCore* core, int ar
     return collectionSearch (&search);
 }
 
-R_IPI RCmdStatus r_collection_search_by_collection_name_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_search_by_collection_name_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     SearchCollectionRequest search = SearchCollectionRequestInit();
@@ -636,7 +675,8 @@ R_IPI RCmdStatus r_collection_search_by_collection_name_handler (RCore* core, in
 /**
  * "REcsh"
  * */
-R_IPI RCmdStatus r_collection_search_by_binary_sha256_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_search_by_binary_sha256_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     SearchCollectionRequest search = SearchCollectionRequestInit();
@@ -667,7 +707,8 @@ RCmdStatus collectionFilteredSearch (Str term, Str filters, OrderBy order_by, bo
 /**
  * REcat
  * */
-R_IPI RCmdStatus r_collection_basic_info_asc_time_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_basic_info_asc_time_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     Str term = StrInit(), filters = StrInit();
@@ -679,7 +720,8 @@ R_IPI RCmdStatus r_collection_basic_info_asc_time_handler (RCore* core, int argc
 /**
  * REcao
  * */
-R_IPI RCmdStatus r_collection_basic_info_asc_owner_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_basic_info_asc_owner_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     Str term = StrInit(), filters = StrInit();
@@ -691,7 +733,8 @@ R_IPI RCmdStatus r_collection_basic_info_asc_owner_handler (RCore* core, int arg
 /**
  * REcan
  * */
-R_IPI RCmdStatus r_collection_basic_info_asc_name_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_basic_info_asc_name_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     Str term = StrInit(), filters = StrInit();
@@ -703,7 +746,8 @@ R_IPI RCmdStatus r_collection_basic_info_asc_name_handler (RCore* core, int argc
 /**
  * REcam
  * */
-R_IPI RCmdStatus r_collection_basic_info_asc_model_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_basic_info_asc_model_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     Str term = StrInit(), filters = StrInit();
@@ -715,7 +759,8 @@ R_IPI RCmdStatus r_collection_basic_info_asc_model_handler (RCore* core, int arg
 /**
  * REcas
  * */
-R_IPI RCmdStatus r_collection_basic_info_asc_size_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_basic_info_asc_size_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     Str term = StrInit(), filters = StrInit();
@@ -727,7 +772,8 @@ R_IPI RCmdStatus r_collection_basic_info_asc_size_handler (RCore* core, int argc
 /**
  * REcdt
  * */
-R_IPI RCmdStatus r_collection_basic_info_desc_time_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_basic_info_desc_time_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     Str term = StrInit(), filters = StrInit();
@@ -739,7 +785,8 @@ R_IPI RCmdStatus r_collection_basic_info_desc_time_handler (RCore* core, int arg
 /**
  * REcdo
  * */
-R_IPI RCmdStatus r_collection_basic_info_desc_owner_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_basic_info_desc_owner_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     Str term = StrInit(), filters = StrInit();
@@ -751,7 +798,8 @@ R_IPI RCmdStatus r_collection_basic_info_desc_owner_handler (RCore* core, int ar
 /**
  * REcdn
  * */
-R_IPI RCmdStatus r_collection_basic_info_desc_name_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_basic_info_desc_name_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     Str term = StrInit(), filters = StrInit();
@@ -763,7 +811,8 @@ R_IPI RCmdStatus r_collection_basic_info_desc_name_handler (RCore* core, int arg
 /**
  * REcdm
  * */
-R_IPI RCmdStatus r_collection_basic_info_desc_model_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_basic_info_desc_model_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     Str term = StrInit(), filters = StrInit();
@@ -775,7 +824,8 @@ R_IPI RCmdStatus r_collection_basic_info_desc_model_handler (RCore* core, int ar
 /**
  * REcds
  * */
-R_IPI RCmdStatus r_collection_basic_info_desc_size_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_collection_basic_info_desc_size_handler (RCore* core, int argc, const char** argv) {
     (void)core;
 
     Str term = StrInit(), filters = StrInit();
@@ -788,8 +838,18 @@ RCmdStatus searchBinary (SearchBinaryRequest* search) {
     BinaryInfos binaries = SearchBinary (GetConnection(), search);
     SearchBinaryRequestDeinit (search);
 
-    RTable* t = r_table_new("Searched Binaries Results");
-    r_table_set_columnsf (t, "snnssss", "name", "binary_id", "analysis_id", "model", "owner", "created_at", "sha256");
+    RTable* t = r_table_new ("Searched Binaries Results");
+    r_table_set_columnsf (
+        t,
+        "snnssss",
+        "name",
+        "binary_id",
+        "analysis_id",
+        "model",
+        "owner",
+        "created_at",
+        "sha256"
+    );
 
     VecForeachPtr (&binaries, binary, {
         r_table_add_rowf (
@@ -881,7 +941,7 @@ RCmdStatus openLinkForId (const char* type, u64 id) {
     if (syscmd) {
         Str cmd = StrInit();
         StrPrintf (&cmd, "%s %s", syscmd, host.data);
-        r_sys_cmd(cmd.data);
+        r_sys_cmd (cmd.data);
         StrDeinit (&cmd);
     }
 
@@ -917,7 +977,8 @@ R_IPI RCmdStatus r_analysis_link_handler (RCore* core, int argc, const char** ar
         if (!bid) {
             DISPLAY_ERROR (
                 "No existing analysis attached to current session, and no binary id provided.\n"
-                "Please create a new analysis or apply an existing one, or provide a valid binary id"
+                "Please create a new analysis or apply an existing one, or provide a valid binary "
+                "id"
             );
             return R_CMD_STATUS_WRONG_ARGS;
         }
@@ -944,7 +1005,8 @@ R_IPI RCmdStatus r_function_link_handler (RCore* core, int argc, const char** ar
 /**
  * REal
  * */
-R_IPI RCmdStatus r_get_analysis_logs_using_analysis_id_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_get_analysis_logs_using_analysis_id_handler (RCore* core, int argc, const char** argv) {
     AnalysisId analysis_id = 0;
     NUM_ARG (analysis_id, 1);
 
@@ -952,7 +1014,8 @@ R_IPI RCmdStatus r_get_analysis_logs_using_analysis_id_handler (RCore* core, int
         if (!GetBinaryId()) {
             DISPLAY_ERROR (
                 "No RevEngAI analysis attached with current session.\n"
-                "Either provide an analysis id, apply an existing analysis or create a new analysis\n"
+                "Either provide an analysis id, apply an existing analysis or create a new "
+                "analysis\n"
             );
             return R_CMD_STATUS_WRONG_ARGS;
         }
@@ -979,7 +1042,8 @@ R_IPI RCmdStatus r_get_analysis_logs_using_analysis_id_handler (RCore* core, int
 /**
  * REalb
  * */
-R_IPI RCmdStatus r_get_analysis_logs_using_binary_id_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_get_analysis_logs_using_binary_id_handler (RCore* core, int argc, const char** argv) {
     AnalysisId binary_id = 0;
     NUM_ARG (binary_id, 1);
 
@@ -1026,8 +1090,17 @@ R_IPI RCmdStatus r_get_recent_analyses_handler (RCore* core, int argc, const cha
         return R_CMD_STATUS_ERROR;
     }
 
-    RTable* t = r_table_new("Most Recent Analysis");
-    r_table_set_columnsf (t, "nnssss", "analysis_id", "binary_id", "status", "creation", "binary_name", "scope");
+    RTable* t = r_table_new ("Most Recent Analysis");
+    r_table_set_columnsf (
+        t,
+        "nnssss",
+        "analysis_id",
+        "binary_id",
+        "status",
+        "creation",
+        "binary_name",
+        "scope"
+    );
 
     VecForeachPtr (&analyses, analysis, {
         Str status_str = StrInit();
@@ -1056,7 +1129,8 @@ R_IPI RCmdStatus r_get_recent_analyses_handler (RCore* core, int argc, const cha
 /**
  * "REaud"
  * */
-R_IPI RCmdStatus r_ann_auto_analyze_restrict_debug_handler (RCore* core, int argc, const char** argv) {
+R_IPI RCmdStatus
+    r_ann_auto_analyze_restrict_debug_handler (RCore* core, int argc, const char** argv) {
     return autoAnalyze (core, argc, argv, true);
 }
 

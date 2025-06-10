@@ -87,7 +87,7 @@ Plugin *getPlugin (bool reinit) {
             return NULL;
         }
         p.connection.api_key = StrInitFromStr (api_key);
-       p.connection.host    = StrInitFromStr (host);
+        p.connection.host    = StrInitFromStr (host);
 
         // Get AI models, this way we also perform an implicit auth-check
         p.models = GetAiModelInfos (&p.connection);
@@ -217,7 +217,7 @@ void rApplyAnalysis (RCore *core, BinaryId binary_id) {
                 failed = true;
                 continue;
             }
-            r_anal_function_rename(fn, function->symbol.name.data);
+            r_anal_function_rename (fn, function->symbol.name.data);
         });
 
         SetBinaryId (binary_id);
@@ -291,7 +291,7 @@ void rAutoRenameFunctions (
             AnnSymbol *best_match = getMostSimilarFunctionSymbol (&map, id);
             if (best_match) {
                 LOG_INFO ("Renamed '%s' to '%s'", fn->name, best_match->function_name.data);
-                r_anal_function_rename(fn, best_match->function_name.data);
+                r_anal_function_rename (fn, best_match->function_name.data);
             }
         }
 
@@ -456,7 +456,7 @@ Str rGetCurrentBinaryPath (RCore *core) {
         LOG_FATAL ("Invalid arguments: Invalid Radare2 core provided.");
     }
     RBin *binfile = getCurrentBinary (core);
-    return binfile ? StrInitFromZstr (r_file_abspath(binfile->file)) : (Str) {0};
+    return binfile ? StrInitFromZstr (r_file_abspath (binfile->file)) : (Str) {0};
 }
 
 u64 rGetCurrentBinaryBaseAddr (RCore *core) {
@@ -465,5 +465,5 @@ u64 rGetCurrentBinaryBaseAddr (RCore *core) {
     }
 
     RBin *binfile = getCurrentBinary (core);
-    return binfile ? r_bin_get_baddr(binfile) : 0;
+    return binfile ? r_bin_get_baddr (binfile) : 0;
 }
