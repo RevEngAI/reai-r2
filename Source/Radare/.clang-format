@@ -85,7 +85,7 @@ IndentWrappedFunctionNames: true
 InsertBraces: false
 KeepEmptyLinesAtEOF: false
 KeepEmptyLinesAtTheStartOfBlocks: false
-LineEnding: CRLF
+LineEnding: LF
 Macros:
   - ALLOCATE(type, n) (type*)calloc(sizeof(type), n)
   - FREE(x) free((void*)x)

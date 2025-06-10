@@ -12,7 +12,7 @@
 #define REAI_RADARE_PLUGIN
 
 
-    /* libc */
+/* libc */
 #include <stdio.h>
 
 /* revenai */
@@ -50,7 +50,7 @@ extern "C" {
     /// SUCCESS : Connection object filled with valid data.
     /// FAILURE : Empty object.
     ///
-    Connection *GetConnection();
+    Connection* GetConnection();
 
     ///
     /// Get current binary ID (if any set).
@@ -67,7 +67,7 @@ extern "C" {
     /// SUCCESS : Vector of ModelInfo objects filled with valid data.
     /// FAILURE : Empty vector otherwise.
     ///
-    ModelInfos *GetModels();
+    ModelInfos* GetModels();
 
     ///
     /// Check whether or not we can work with analysis associated with given binary ID.
@@ -99,9 +99,9 @@ extern "C" {
     ///
     void rAutoRenameFunctions (
         RCore* core,
-        size    max_results_per_function,
-        u32     min_similarity,
-        bool    debug_symbols_only
+        size   max_results_per_function,
+        u32    min_similarity,
+        bool   debug_symbols_only
     );
 
     ///
@@ -147,26 +147,26 @@ extern "C" {
 }
 #endif
 
-#define DISPLAY_MSG(level, ...)                                                                                        \
-    do {                                                                                                               \
-        Str msg = StrInit();                                                                                           \
-        StrPrintf (&msg, __VA_ARGS__);                                                                                 \
-        rDisplayMsg (level, &msg);                                                                                    \
-        StrDeinit (&msg);                                                                                              \
+#define DISPLAY_MSG(level, ...)                                                                    \
+    do {                                                                                           \
+        Str msg = StrInit();                                                                       \
+        StrPrintf (&msg, __VA_ARGS__);                                                             \
+        rDisplayMsg (level, &msg);                                                                 \
+        StrDeinit (&msg);                                                                          \
     } while (0)
 
-#define APPEND_MSG(level, ...)                                                                                         \
-    do {                                                                                                               \
-        Str msg = StrInit();                                                                                           \
-        StrPrintf (&msg, __VA_ARGS__);                                                                                 \
-        rAppendMsg (level, &msg);                                                                                     \
-        StrDeinit (&msg);                                                                                              \
+#define APPEND_MSG(level, ...)                                                                     \
+    do {                                                                                           \
+        Str msg = StrInit();                                                                       \
+        StrPrintf (&msg, __VA_ARGS__);                                                             \
+        rAppendMsg (level, &msg);                                                                  \
+        StrDeinit (&msg);                                                                          \
     } while (0)
 
 #define DISPLAY_INFO(...)  DISPLAY_MSG (LOG_LEVEL_INFO, __VA_ARGS__)
 #define DISPLAY_ERROR(...) DISPLAY_MSG (LOG_LEVEL_ERROR, __VA_ARGS__)
-#define DISPLAY_FATAL(...)                                                                                             \
-    DISPLAY_MSG (LOG_LEVEL_FATAL, __VA_ARGS__);                                                                        \
+#define DISPLAY_FATAL(...)                                                                         \
+    DISPLAY_MSG (LOG_LEVEL_FATAL, __VA_ARGS__);                                                    \
     abort()
 
 #define APPEND_INFO(...)  APPEND_MSG (LOG_LEVEL_INFO, __VA_ARGS__)
