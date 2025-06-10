@@ -454,8 +454,8 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                     DISPLAY_INFO ("AI decompilation complete ;-)\n");
 
                     AiDecompilation aidec = GetAiDecompilation (GetConnection(), fn_id, true);
-                    Str*            smry  = &aidec.summary;
-                    Str*            dec   = &aidec.decompilation;
+                    Str*            smry  = &aidec.raw_ai_summary;
+                    Str*            dec   = &aidec.raw_decompilation;
 
                     Str code = StrInit();
 
