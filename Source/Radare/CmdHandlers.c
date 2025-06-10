@@ -1053,7 +1053,9 @@ R_IPI RCmdStatus
 
     AnalysisId analysis_id = AnalysisIdFromBinaryId (GetConnection(), GetBinaryId());
     if (!analysis_id) {
-        DISPLAY_ERROR ("Failed to get analysis id from binary id. Please check validity of provided binary id");
+        DISPLAY_ERROR (
+            "Failed to get analysis id from binary id. Please check validity of provided binary id"
+        );
         return R_CMD_STATUS_OK;
     }
 
@@ -1061,7 +1063,10 @@ R_IPI RCmdStatus
     if (logs.length) {
         r_cons_println (logs.data);
     } else {
-        DISPLAY_ERROR ("Failed to get analysis logs. Please check your internet connection, and plugin log file.");
+        DISPLAY_ERROR (
+            "Failed to get analysis logs. Please check your internet connection, and plugin log "
+            "file."
+        );
         return R_CMD_STATUS_OK;
     }
     StrDeinit (&logs);
