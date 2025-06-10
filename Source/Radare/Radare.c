@@ -12,6 +12,7 @@
 // plugin
 #include <Radare/CmdDesc.h>
 #include <Plugin.h>
+#include "PluginVersion.h"
 
 // reai
 #include <Reai/Log.h>
@@ -100,7 +101,7 @@ RCorePlugin r_core_plugin_reai = {
                .desc    = "RevEngAI radare plugin",
                .license = "GPL3",
                .author  = "Siddharth Mishra",
-               .version = "v1+search:apr10",
+               .version = REAI_PLUGIN_VERSION,
                },
     .call = reai_r2_core_cmd,
     .init = reai_r2_core_init,

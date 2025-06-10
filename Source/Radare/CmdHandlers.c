@@ -111,7 +111,7 @@ R_IPI RCmdStatus r_upload_bin_handler (RCore* core, int argc, const char** argv)
         } else {
             DISPLAY_ERROR ("Failed to upload file: %s", file_path.data);
             StrDeinit (&file_path);
-            return R_CMD_STATUS_ERROR;
+            return R_CMD_STATUS_OK;
         }
     } else {
         DISPLAY_ERROR ("Usage: REu <file_path>");
@@ -159,10 +159,10 @@ RCmdStatus createAnalysis (RCore* core, int argc, const char** argv, bool is_pri
 
     if (!bin_id) {
         DISPLAY_ERROR ("Failed to create new analysis");
-        return R_CMD_STATUS_ERROR;
+        return R_CMD_STATUS_OK;
     }
 
-    return R_CMD_STATUS_ERROR;
+    return R_CMD_STATUS_OK;
 }
 
 /**
@@ -190,7 +190,7 @@ R_IPI RCmdStatus r_apply_existing_analysis_handler (RCore* core, int argc, const
         return R_CMD_STATUS_OK;
     } else {
         LOG_ERROR ("Invalid binary ID");
-        return R_CMD_STATUS_ERROR;
+        return R_CMD_STATUS_WRONG_ARGS;
     }
 }
 
@@ -245,7 +245,7 @@ R_IPI RCmdStatus r_get_basic_function_info_handler (RCore* core, int argc, const
         RTable* table = r_table_new ("Functions");
         if (!table) {
             DISPLAY_ERROR ("Failed to create the table.");
-            return R_CMD_STATUS_ERROR;
+            return R_CMD_STATUS_OK;
         }
 
         r_table_set_columnsf (table, "nsxx", "function_id", "name", "vaddr", "size");
@@ -264,15 +264,13 @@ R_IPI RCmdStatus r_get_basic_function_info_handler (RCore* core, int argc, const
         if (!table_str) {
             DISPLAY_ERROR ("Failed to convert table to string.");
             r_table_free (table);
-            return R_CMD_STATUS_ERROR;
+            return R_CMD_STATUS_OK;
         }
 
         r_cons_println (table_str);
 
         FREE (table_str);
         r_table_free (table);
-
-        return R_CMD_STATUS_OK;
     } else {
         DISPLAY_ERROR (
             "Current session has no completed analysis attached to it.\n"
@@ -281,7 +279,7 @@ R_IPI RCmdStatus r_get_basic_function_info_handler (RCore* core, int argc, const
         );
     }
 
-    return R_CMD_STATUS_ERROR;
+    return R_CMD_STATUS_OK;
 }
 
 /**
@@ -296,19 +294,19 @@ R_IPI RCmdStatus r_rename_function_handler (RCore* core, int argc, const char** 
             RAnalFunction* fn = r_anal_get_function_byname (core->anal, old_name.data);
             if (!fn) {
                 DISPLAY_ERROR ("Rizin function with given name not found.");
-                return R_CMD_STATUS_ERROR;
+                return R_CMD_STATUS_OK;
             }
 
             if (RenameFunction (GetConnection(), rLookupFunctionId (core, fn), new_name)) {
                 DISPLAY_ERROR ("Failed to rename function");
-                return R_CMD_STATUS_ERROR;
+                return R_CMD_STATUS_OK;
             }
 
             return R_CMD_STATUS_OK;
         }
     }
 
-    return R_CMD_STATUS_ERROR;
+    return R_CMD_STATUS_WRONG_ARGS;
 }
 
 RCmdStatus
@@ -390,7 +388,7 @@ RCmdStatus
 
     DISPLAY_ERROR ("Failed to perform function similarity search");
     SimilarFunctionsRequestDeinit (&search);
-    return R_CMD_STATUS_ERROR;
+    return R_CMD_STATUS_OK;
 }
 
 /**
@@ -410,9 +408,9 @@ R_IPI RCmdStatus
 
 R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** argv) {
     LOG_INFO ("[CMD] AI decompile");
-    const char* fn_name = argc > 1 ? argv[1] : NULL;
-    if (!fn_name) {
-        return R_CMD_STATUS_INVALID;
+    const char* fn_name = NULL;
+    if (!ZSTR_ARG (fn_name, 1)) {
+        return R_CMD_STATUS_WRONG_ARGS;
     }
 
     if (rCanWorkWithAnalysis (GetBinaryId(), true)) {
@@ -423,14 +421,14 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                 "A function with that name does not exist in current Rizin session.\n"
                 "Please provide a name from output of `afl` command."
             );
-            return R_CMD_STATUS_ERROR;
+            return R_CMD_STATUS_WRONG_ARGS;
         }
 
         Status status = GetAiDecompilationStatus (GetConnection(), fn_id);
         if ((status & STATUS_MASK) == STATUS_ERROR) {
             if (!BeginAiDecompilation (GetConnection(), fn_id)) {
                 DISPLAY_ERROR ("Failed to start AI decompilation process.");
-                return R_CMD_STATUS_ERROR;
+                return R_CMD_STATUS_OK;
             }
         }
 
@@ -447,7 +445,7 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                         fn_name,
                         fn_name
                     );
-                    return R_CMD_STATUS_ERROR;
+                    return R_CMD_STATUS_OK;
 
                 case STATUS_UNINITIALIZED :
                     DISPLAY_INFO (
@@ -456,7 +454,7 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                     );
                     if (!BeginAiDecompilation (GetConnection(), fn_id)) {
                         DISPLAY_ERROR ("Failed to start AI decompilation process.");
-                        return R_CMD_STATUS_ERROR;
+                        return R_CMD_STATUS_OK;
                     }
                     break;
 
@@ -569,7 +567,7 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                 }
                 default :
                     LOG_FATAL ("Unreachable code reached. Invalid decompilation status");
-                    return R_CMD_STATUS_ERROR;
+                    return R_CMD_STATUS_OK;
             }
 
             DISPLAY_INFO ("Going to sleep for two seconds...");
@@ -577,7 +575,7 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
         }
     } else {
         DISPLAY_ERROR ("Failed to get AI decompilation.");
-        return R_CMD_STATUS_ERROR;
+        return R_CMD_STATUS_OK;
     }
 }
 
@@ -623,7 +621,7 @@ RCmdStatus collectionSearch (SearchCollectionRequest* search) {
 
     VecDeinit (&collections);
 
-    return R_CMD_STATUS_ERROR;
+    return R_CMD_STATUS_OK;
 }
 
 /**
@@ -686,6 +684,7 @@ R_IPI RCmdStatus
 
     return collectionSearch (&search);
 }
+
 RCmdStatus collectionFilteredSearch (Str term, Str filters, OrderBy order_by, bool is_asc) {
     SearchCollectionRequest search = SearchCollectionRequestInit();
 
@@ -713,7 +712,7 @@ R_IPI RCmdStatus
 
     Str term = StrInit(), filters = StrInit();
     STR_ARG (term, 1);
-    STR_ARG (term, 2);
+    STR_ARG (filters, 2);
     return collectionFilteredSearch (term, filters, ORDER_BY_LAST_UPDATED, true);
 }
 
@@ -726,7 +725,7 @@ R_IPI RCmdStatus
 
     Str term = StrInit(), filters = StrInit();
     STR_ARG (term, 1);
-    STR_ARG (term, 2);
+    STR_ARG (filters, 2);
     return collectionFilteredSearch (term, filters, ORDER_BY_OWNER, true);
 }
 
@@ -739,7 +738,7 @@ R_IPI RCmdStatus
 
     Str term = StrInit(), filters = StrInit();
     STR_ARG (term, 1);
-    STR_ARG (term, 2);
+    STR_ARG (filters, 2);
     return collectionFilteredSearch (term, filters, ORDER_BY_NAME, true);
 }
 
@@ -752,7 +751,7 @@ R_IPI RCmdStatus
 
     Str term = StrInit(), filters = StrInit();
     STR_ARG (term, 1);
-    STR_ARG (term, 2);
+    STR_ARG (filters, 2);
     return collectionFilteredSearch (term, filters, ORDER_BY_MODEL, true);
 }
 
@@ -765,7 +764,7 @@ R_IPI RCmdStatus
 
     Str term = StrInit(), filters = StrInit();
     STR_ARG (term, 1);
-    STR_ARG (term, 2);
+    STR_ARG (filters, 2);
     return collectionFilteredSearch (term, filters, ORDER_BY_SIZE, true);
 }
 
@@ -778,7 +777,7 @@ R_IPI RCmdStatus
 
     Str term = StrInit(), filters = StrInit();
     STR_ARG (term, 1);
-    STR_ARG (term, 2);
+    STR_ARG (filters, 2);
     return collectionFilteredSearch (term, filters, ORDER_BY_LAST_UPDATED, false);
 }
 
@@ -791,7 +790,7 @@ R_IPI RCmdStatus
 
     Str term = StrInit(), filters = StrInit();
     STR_ARG (term, 1);
-    STR_ARG (term, 2);
+    STR_ARG (filters, 2);
     return collectionFilteredSearch (term, filters, ORDER_BY_OWNER, false);
 }
 
@@ -804,7 +803,7 @@ R_IPI RCmdStatus
 
     Str term = StrInit(), filters = StrInit();
     STR_ARG (term, 1);
-    STR_ARG (term, 2);
+    STR_ARG (filters, 2);
     return collectionFilteredSearch (term, filters, ORDER_BY_NAME, false);
 }
 
@@ -817,7 +816,7 @@ R_IPI RCmdStatus
 
     Str term = StrInit(), filters = StrInit();
     STR_ARG (term, 1);
-    STR_ARG (term, 2);
+    STR_ARG (filters, 2);
     return collectionFilteredSearch (term, filters, ORDER_BY_MODEL, false);
 }
 
@@ -830,7 +829,7 @@ R_IPI RCmdStatus
 
     Str term = StrInit(), filters = StrInit();
     STR_ARG (term, 1);
-    STR_ARG (term, 2);
+    STR_ARG (filters, 2);
     return collectionFilteredSearch (term, filters, ORDER_BY_SIZE, false);
 }
 
@@ -992,9 +991,7 @@ R_IPI RCmdStatus r_analysis_link_handler (RCore* core, int argc, const char** ar
  * */
 R_IPI RCmdStatus r_function_link_handler (RCore* core, int argc, const char** argv) {
     FunctionId fid = 0;
-    NUM_ARG (fid, 1);
-
-    if (!fid) {
+    if (!NUM_ARG (fid, 1)) {
         DISPLAY_ERROR ("Invalid function ID provided.");
         return R_CMD_STATUS_WRONG_ARGS;
     }
@@ -1008,9 +1005,8 @@ R_IPI RCmdStatus r_function_link_handler (RCore* core, int argc, const char** ar
 R_IPI RCmdStatus
     r_get_analysis_logs_using_analysis_id_handler (RCore* core, int argc, const char** argv) {
     AnalysisId analysis_id = 0;
-    NUM_ARG (analysis_id, 1);
 
-    if (!analysis_id) {
+    if (!NUM_ARG (analysis_id, 1)) {
         if (!GetBinaryId()) {
             DISPLAY_ERROR (
                 "No RevEngAI analysis attached with current session.\n"
@@ -1023,7 +1019,7 @@ R_IPI RCmdStatus
         analysis_id = AnalysisIdFromBinaryId (GetConnection(), GetBinaryId());
         if (!analysis_id) {
             DISPLAY_ERROR ("Failed to get analysis id from binary id attached to this session");
-            return R_CMD_STATUS_ERROR;
+            return R_CMD_STATUS_WRONG_ARGS;
         }
     }
 
@@ -1032,7 +1028,7 @@ R_IPI RCmdStatus
         r_cons_println (logs.data);
     } else {
         DISPLAY_ERROR ("Failed to get analysis logs.");
-        return R_CMD_STATUS_ERROR;
+        return R_CMD_STATUS_WRONG_ARGS;
     }
     StrDeinit (&logs);
 
@@ -1057,16 +1053,16 @@ R_IPI RCmdStatus
 
     AnalysisId analysis_id = AnalysisIdFromBinaryId (GetConnection(), GetBinaryId());
     if (!analysis_id) {
-        DISPLAY_ERROR ("Failed to get analysis id from binary id");
-        return R_CMD_STATUS_ERROR;
+        DISPLAY_ERROR ("Failed to get analysis id from binary id. Please check validity of provided binary id");
+        return R_CMD_STATUS_OK;
     }
 
     Str logs = GetAnalysisLogs (GetConnection(), analysis_id);
     if (logs.length) {
         r_cons_println (logs.data);
     } else {
-        DISPLAY_ERROR ("Failed to get analysis logs.");
-        return R_CMD_STATUS_ERROR;
+        DISPLAY_ERROR ("Failed to get analysis logs. Please check your internet connection, and plugin log file.");
+        return R_CMD_STATUS_OK;
     }
     StrDeinit (&logs);
 
@@ -1087,7 +1083,7 @@ R_IPI RCmdStatus r_get_recent_analyses_handler (RCore* core, int argc, const cha
 
     if (!analyses.length) {
         DISPLAY_ERROR ("Failed to get most recent analysis. Are you a new user?");
-        return R_CMD_STATUS_ERROR;
+        return R_CMD_STATUS_OK;
     }
 
     RTable* t = r_table_new ("Most Recent Analysis");

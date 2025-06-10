@@ -10,6 +10,12 @@
 # Dependencies
 # - MSVC Compiler Toolchain
 
+param(
+    [string]$branchName = "master"
+)
+
+Write-Host "Building plugin from branch $branchName"
+
 $BaseDir = "$($HOME -replace '\\', '\\')\\.local\\RevEngAI\\Radare2"
 $BuildDir = "$BaseDir\\Build"
 $InstallPath = "$BaseDir\\Install"
@@ -98,7 +104,7 @@ $DepsList = @"
 
 https://curl.se/download/curl-8.13.0.zip
 https://github.com/RevEngAI/creait/archive/refs/heads/master.zip
-https://github.com/RevEngAI/reai-r2/archive/refs/heads/master.zip
+https://github.com/RevEngAI/reai-r2/archive/refs/heads/$branchName.zip
 "@
 
 # Dump URL List to a text file for aria2c to use
@@ -110,10 +116,10 @@ aria2c -i "$BuildDir\\DependenciesList.txt" -j8 -d "$DownPath"
 
 # These dependencies need to be built on the host machine, unlike installing the pre-compiled binaries above
 $pkgs = @(
-    # Final Destination         Downloaded archive name                Subfolder name where actually extracted
-    @{name = "curl";    path = "$DownPath\\curl-8.13.0.zip";           subfolderName="curl-8.13.0"},
-    @{name = "reai-r2"; path = "$DownPath\\reai-r2-master.zip";        subfolderName="reai-r2-master"},
-    @{name = "creait";  path = "$DownPath\\creait-master.zip";         subfolderName="creait-master"}
+    # Final Destination         Downloaded archive name                     Subfolder name where actually extracted
+    @{name = "curl";    path = "$DownPath\\curl-8.13.0.zip";                subfolderName="curl-8.13.0"},
+    @{name = "reai-r2"; path = "$DownPath\\reai-r2-$branchName.zip";        subfolderName="reai-r2-$branchName"},
+    @{name = "creait";  path = "$DownPath\\creait-master.zip";              subfolderName="creait-master"}
 )
 # Unpack a dependency to be built later on
 # These temporarily go into dependencies directory
