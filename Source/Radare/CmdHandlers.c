@@ -24,6 +24,7 @@
 
 /* local includes */
 #include <Plugin.h>
+#include <stdlib.h>
 
 // TODO: restrict to debug symbols only
 
@@ -406,6 +407,127 @@ R_IPI RCmdStatus
     return functionSimilaritySearch (core, argc, argv, true);
 }
 
+static inline Str getDecompilation (FunctionId fn_id, bool colorize) {
+    if (!fn_id) {
+        LOG_FATAL ("Invalid function Id provided. Expected a non-zero value.");
+        return StrInit();
+    }
+
+    AiDecompilation aidec = GetAiDecompilation (GetConnection(), fn_id, true);
+    Str*            smry  = &aidec.raw_ai_summary;
+    Str*            dec   = &aidec.raw_decompilation;
+
+    Str summary = StrInit();
+
+    static i32 SOFT_LIMIT = 120;
+
+    i32   l = smry->length;
+    char* p = smry->data;
+    while (l > SOFT_LIMIT) {
+        char* p1 = strchr (p + SOFT_LIMIT, ' ');
+        if (p1) {
+            StrAppendf (&summary, "// %.*s\n", (i32)(p1 - p), p);
+            p1++;
+            l -= (p1 - p);
+            p  = p1;
+        } else {
+            break;
+        }
+    }
+
+    // TODO: use colorize switch to optionally wrap replaced texts into colors
+
+    Str decompilation = StrInit();
+
+    LOG_INFO ("aidec.functions.length = %zu", aidec.functions.length);
+    VecForeachIdx (&aidec.functions, function, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<DISASM_FUNCTION_%llu>", idx);
+        StrReplace (&decompilation, &dname, &function.name, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.strings.length = %zu", aidec.strings.length);
+    VecForeachIdx (&aidec.strings, string, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<DISASM_STRING_%llu>", idx);
+        StrReplace (&decompilation, &dname, &string.string, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.unmatched.functions.length = %zu", aidec.unmatched.functions.length);
+    VecForeachIdx (&aidec.unmatched.functions, function, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<UNMATCHED_FUNCTION_%llu>", idx);
+        StrReplace (&decompilation, &dname, &function.name, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.unmatched.strings.length = %zu", aidec.unmatched.strings.length);
+    VecForeachIdx (&aidec.unmatched.strings, string, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<UNMATCHED_STRING_%llu>", idx);
+        StrReplace (&decompilation, &dname, &string.value.str, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.unmatched.vars.length = %zu", aidec.unmatched.vars.length);
+    VecForeachIdx (&aidec.unmatched.vars, var, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<VAR_%llu>", idx);
+        StrReplace (&decompilation, &dname, &var.value.str, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.unmatched.external_vars.length = %zu", aidec.unmatched.external_vars.length);
+    VecForeachIdx (&aidec.unmatched.external_vars, var, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<EXTERNAL_VARIABLE_%llu>", idx);
+        StrReplace (&decompilation, &dname, &var.value.str, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.unmatched.custom_types.length = %zu", aidec.unmatched.custom_types.length);
+    VecForeachIdx (&aidec.unmatched.custom_types, var, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<CUSTOM_TYPE_%llu>", idx);
+        StrReplace (&decompilation, &dname, &var.value.str, -1);
+        StrDeinit (&dname);
+    });
+
+    AiDecompilationDeinit (&aidec);
+
+    Str final_code = StrInit();
+
+    Comments comments = GetAiDecompilationComments (GetConnection(), fn_id);
+    if (comments.length) {
+        Strs decompilation_lines = StrSplit (&decompilation, "\n");
+        StrDeinit (&decompilation);
+
+        VecForeachPtr(&comments, comment, {
+            // TODO: zip comments and decompilation lines here                
+            // <code-1>
+            //
+            // <comments for these lines>
+            // <code-line-1>
+            // <code-line-2>
+            // <code-line-3>
+            // .
+            // .
+            // .
+            //
+            // <code-2>
+        });
+    } else {
+        final_code = decompilation;
+    }
+
+    return final_code;
+}
+
+/**
+ * "REda"
+ * */
 R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** argv) {
     LOG_INFO ("[CMD] AI decompile");
     const char* fn_name = NULL;
@@ -465,104 +587,9 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
 
                 case STATUS_SUCCESS : {
                     DISPLAY_INFO ("AI decompilation complete ;-)\n");
-
-                    AiDecompilation aidec = GetAiDecompilation (GetConnection(), fn_id, true);
-                    Str*            smry  = &aidec.raw_ai_summary;
-                    Str*            dec   = &aidec.raw_decompilation;
-
-                    Str code = StrInit();
-
-                    static i32 SOFT_LIMIT = 120;
-
-                    i32   l = smry->length;
-                    char* p = smry->data;
-                    while (l > SOFT_LIMIT) {
-                        char* p1 = strchr (p + SOFT_LIMIT, ' ');
-                        if (p1) {
-                            StrAppendf (&code, "// %.*s\n", (i32)(p1 - p), p);
-                            p1++;
-                            l -= (p1 - p);
-                            p  = p1;
-                        } else {
-                            break;
-                        }
-                    }
-                    StrAppendf (&code, "// %.*s\n\n", (i32)l, p);
-                    StrMerge (&code, dec);
-
-                    LOG_INFO ("aidec.functions.length = %zu", aidec.functions.length);
-                    VecForeachIdx (&aidec.functions, function, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<DISASM_FUNCTION_%llu>", idx);
-                        StrReplace (&code, &dname, &function.name, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO ("aidec.strings.length = %zu", aidec.strings.length);
-                    VecForeachIdx (&aidec.strings, string, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<DISASM_STRING_%llu>", idx);
-                        StrReplace (&code, &dname, &string.string, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO (
-                        "aidec.unmatched.functions.length = %zu",
-                        aidec.unmatched.functions.length
-                    );
-                    VecForeachIdx (&aidec.unmatched.functions, function, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<UNMATCHED_FUNCTION_%llu>", idx);
-                        StrReplace (&code, &dname, &function.name, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO (
-                        "aidec.unmatched.strings.length = %zu",
-                        aidec.unmatched.strings.length
-                    );
-                    VecForeachIdx (&aidec.unmatched.strings, string, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<UNMATCHED_STRING_%llu>", idx);
-                        StrReplace (&code, &dname, &string.value.str, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO ("aidec.unmatched.vars.length = %zu", aidec.unmatched.vars.length);
-                    VecForeachIdx (&aidec.unmatched.vars, var, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<VAR_%llu>", idx);
-                        StrReplace (&code, &dname, &var.value.str, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO (
-                        "aidec.unmatched.external_vars.length = %zu",
-                        aidec.unmatched.external_vars.length
-                    );
-                    VecForeachIdx (&aidec.unmatched.external_vars, var, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<EXTERNAL_VARIABLE_%llu>", idx);
-                        StrReplace (&code, &dname, &var.value.str, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO (
-                        "aidec.unmatched.custom_types.length = %zu",
-                        aidec.unmatched.custom_types.length
-                    );
-                    VecForeachIdx (&aidec.unmatched.custom_types, var, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<CUSTOM_TYPE_%llu>", idx);
-                        StrReplace (&code, &dname, &var.value.str, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    // print decompiled code with summary
-                    r_cons_println (code.data);
-
-                    StrDeinit (&code);
-                    AiDecompilationDeinit (&aidec);
+                    Str dec = getDecompilation (fn_id, true);
+                    r_cons_println (dec.data);
+                    StrDeinit (&dec);
                     return R_CMD_STATUS_OK;
                 }
                 default :
@@ -1133,6 +1160,46 @@ R_IPI RCmdStatus r_get_recent_analyses_handler (RCore* core, int argc, const cha
 R_IPI RCmdStatus
     r_ann_auto_analyze_restrict_debug_handler (RCore* core, int argc, const char** argv) {
     return autoAnalyze (core, argc, argv, true);
+}
+
+R_IPI RCmdStatus
+    updateDecompilerComments (RCore* core, const char* function_name, bool for_ai_comments) {
+    FunctionId id = rLookupFunctionIdForFunctionWithName (core, function_name);
+    if (!id) {
+        DISPLAY_ERROR ("Failed to get a function ID for function with given name.");
+        return R_CMD_STATUS_WRONG_ARGS;
+    }
+
+    Comments comments = for_ai_comments ? GetAiDecompilationComments (GetConnection(), id) :
+                                          GetDecompilationComments (GetConnection(), id);
+
+
+
+    return R_CMD_STATUS_OK;
+}
+
+/**
+ * "REdac"
+ * */
+R_IPI RCmdStatus
+    r_update_ai_decompilation_comments_handler (RCore* core, int argc, const char** argv) {
+    const char* fn_name = NULL;
+    if (ZSTR_ARG (fn_name, 1)) {
+        return updateDecompilerComments (core, fn_name, true);
+    }
+    return R_CMD_STATUS_WRONG_ARGS;
+}
+
+/**
+ * "REdc"
+ * */
+R_IPI RCmdStatus
+    r_update_decompilation_comments_handler (RCore* core, int argc, const char** argv) {
+    const char* fn_name = NULL;
+    if (ZSTR_ARG (fn_name, 1)) {
+        return updateDecompilerComments (code, fn_name, false);
+    }
+    return R_CMD_STATUS_WRONG_ARGS;
 }
 
 /**
