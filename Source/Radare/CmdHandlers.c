@@ -10,6 +10,8 @@
 #include <Reai/Config.h>
 #include <Reai/Log.h>
 #include <Reai/Types.h>
+#include <Reai/Util/Str.h>
+#include <Reai/Sys.h>
 
 /* radare */
 #include <r_anal.h>
@@ -407,22 +409,20 @@ R_IPI RCmdStatus
     return functionSimilaritySearch (core, argc, argv, true);
 }
 
-static inline Str getDecompilation (FunctionId fn_id, bool colorize) {
+static inline Str getAiDecompilation (FunctionId fn_id, bool colorize) {
     if (!fn_id) {
         LOG_FATAL ("Invalid function Id provided. Expected a non-zero value.");
         return StrInit();
     }
 
     AiDecompilation aidec = GetAiDecompilation (GetConnection(), fn_id, true);
-    Str*            smry  = &aidec.raw_ai_summary;
-    Str*            dec   = &aidec.raw_decompilation;
 
-    Str summary = StrInit();
+    Str summary = StrDup (&aidec.raw_ai_summary);
 
     static i32 SOFT_LIMIT = 120;
 
-    i32   l = smry->length;
-    char* p = smry->data;
+    i32   l = summary.length;
+    char* p = summary.data;
     while (l > SOFT_LIMIT) {
         char* p1 = strchr (p + SOFT_LIMIT, ' ');
         if (p1) {
@@ -437,7 +437,38 @@ static inline Str getDecompilation (FunctionId fn_id, bool colorize) {
 
     // TODO: use colorize switch to optionally wrap replaced texts into colors
 
-    Str decompilation = StrInit();
+    Str decompilation = StrDup (&aidec.raw_decompilation);
+
+    Str final_code = StrInit();
+
+    Comments comments = GetAiDecompilationComments (GetConnection(), fn_id);
+    if (comments.length) {
+        Strs decompilation_lines = StrSplit (&decompilation, "\n");
+        StrDeinit (&decompilation);
+
+        VecForeachPtrIdx (&decompilation_lines, line, line_idx, {
+            Str comment_block = StrInit();
+
+            VecForeachPtrReverseIdx (&comments, comment, comment_idx, {
+                if (line_idx + 1 >= comment->context.start_line &&
+                    line_idx + 1 <= comment->context.end_line) {
+                    StrAppendf (&comment_block, "//> %s\n", comment->content.data);
+                    VecDelete (&comments, comment_idx);
+                }
+            });
+
+            StrAppendf (
+                &final_code,
+                "\n%s%s\n",
+                comment_block.data ? comment_block.data : "",
+                line->data
+            );
+        });
+    } else {
+        final_code = decompilation;
+    }
+
+    decompilation = final_code;
 
     LOG_INFO ("aidec.functions.length = %zu", aidec.functions.length);
     VecForeachIdx (&aidec.functions, function, idx, {
@@ -497,32 +528,7 @@ static inline Str getDecompilation (FunctionId fn_id, bool colorize) {
 
     AiDecompilationDeinit (&aidec);
 
-    Str final_code = StrInit();
-
-    Comments comments = GetAiDecompilationComments (GetConnection(), fn_id);
-    if (comments.length) {
-        Strs decompilation_lines = StrSplit (&decompilation, "\n");
-        StrDeinit (&decompilation);
-
-        VecForeachPtr(&comments, comment, {
-            // TODO: zip comments and decompilation lines here                
-            // <code-1>
-            //
-            // <comments for these lines>
-            // <code-line-1>
-            // <code-line-2>
-            // <code-line-3>
-            // .
-            // .
-            // .
-            //
-            // <code-2>
-        });
-    } else {
-        final_code = decompilation;
-    }
-
-    return final_code;
+    return decompilation;
 }
 
 /**
@@ -587,7 +593,7 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
 
                 case STATUS_SUCCESS : {
                     DISPLAY_INFO ("AI decompilation complete ;-)\n");
-                    Str dec = getDecompilation (fn_id, true);
+                    Str dec = getAiDecompilation (fn_id, true);
                     r_cons_println (dec.data);
                     StrDeinit (&dec);
                     return R_CMD_STATUS_OK;
@@ -1003,7 +1009,8 @@ R_IPI RCmdStatus r_analysis_link_handler (RCore* core, int argc, const char** ar
         if (!bid) {
             DISPLAY_ERROR (
                 "No existing analysis attached to current session, and no binary id provided.\n"
-                "Please create a new analysis or apply an existing one, or provide a valid binary "
+                "Please create a new analysis or apply an existing one, or provide a valid "
+                "binary "
                 "id"
             );
             return R_CMD_STATUS_WRONG_ARGS;
@@ -1073,7 +1080,8 @@ R_IPI RCmdStatus
     if (!binary_id && !GetBinaryId()) {
         DISPLAY_ERROR (
             "No RevEngAI analysis attached with current session.\n"
-            "Either provide an analysis id, apply an existing analysis or create a new analysis\n"
+            "Either provide an analysis id, apply an existing analysis or create a new "
+            "analysis\n"
         );
         return R_CMD_STATUS_WRONG_ARGS;
     }
@@ -1081,7 +1089,8 @@ R_IPI RCmdStatus
     AnalysisId analysis_id = AnalysisIdFromBinaryId (GetConnection(), GetBinaryId());
     if (!analysis_id) {
         DISPLAY_ERROR (
-            "Failed to get analysis id from binary id. Please check validity of provided binary id"
+            "Failed to get analysis id from binary id. Please check validity of provided "
+            "binary id"
         );
         return R_CMD_STATUS_OK;
     }
@@ -1091,7 +1100,8 @@ R_IPI RCmdStatus
         r_cons_println (logs.data);
     } else {
         DISPLAY_ERROR (
-            "Failed to get analysis logs. Please check your internet connection, and plugin log "
+            "Failed to get analysis logs. Please check your internet connection, and plugin "
+            "log "
             "file."
         );
         return R_CMD_STATUS_OK;
@@ -1162,6 +1172,52 @@ R_IPI RCmdStatus
     return autoAnalyze (core, argc, argv, true);
 }
 
+/// Launches the given editor with the given filepath and waits for it to exit.
+/// Handles both GUI and terminal editors.
+static inline int launchEditorAndWait (Str *user_editor, const char* filepath) {
+    // Choose default editor if not specified
+    const char* editor = user_editor ? user_editor->data :
+#ifdef _WIN32
+                                       "notepad";
+#elif __APPLE__
+                                       "open -W -n -e TextEdit";
+#else
+                                       "nano";
+#endif
+    
+    Str command = StrInit();
+    StrPrintf (&command, "%s \"%s\"", editor, filepath);
+
+    LOG_INFO ("Launching editor command = %s", command.data);
+
+#ifdef _WIN32
+    // Use system() on Windows — simple, no forking
+    int res = system (command);
+
+    StrDeinit(&command);
+    return res;
+#else
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Child process
+        execl ("/bin/sh", "sh", "-c", command.data, (char*)NULL);
+        perror ("execl failed");
+        StrDeinit(&command);
+        exit (127);
+    } else if (pid > 0) {
+        // Parent process waits for terminal editors
+        int status;
+        waitpid (pid, &status, 0);
+        StrDeinit(&command);
+        return WIFEXITED (status) ? WEXITSTATUS (status) : -1;
+    } else {
+        StrDeinit(&command);
+        perror ("fork failed");
+        return -1;
+    }
+#endif
+}
+
 R_IPI RCmdStatus
     updateDecompilerComments (RCore* core, const char* function_name, bool for_ai_comments) {
     FunctionId id = rLookupFunctionIdForFunctionWithName (core, function_name);
@@ -1170,10 +1226,54 @@ R_IPI RCmdStatus
         return R_CMD_STATUS_WRONG_ARGS;
     }
 
-    Comments comments = for_ai_comments ? GetAiDecompilationComments (GetConnection(), id) :
-                                          GetDecompilationComments (GetConnection(), id);
+    if (!for_ai_comments) {
+        LOG_ERROR ("Only AI Decompilation supported for now!");
+        return R_CMD_STATUS_OK;
+    }
+
+    Str code = getAiDecompilation (id, false);
+
+    const char* tmpfilepath = r_file_temp (NULL);
+    FILE*       f           = fopen (tmpfilepath, "w");
+    fputs (code.data, f);
+    fclose (f);
+
+    LOG_INFO ("written decompilation contents to temp file path = %s", tmpfilepath);
+
+    int launch_result = launchEditorAndWait (ConfigGet(GetConfig(), "editor"), tmpfilepath);
+    if (launch_result != 0) {
+        DISPLAY_ERROR("Editor process failed with code %d. Failed to provide access to decompiled code.", launch_result);
+        return R_CMD_STATUS_OK;
+    }
+
+    // Read the modified content
+    FILE* fp = fopen (tmpfilepath, "r");
+    if (!fp) {
+        Str errstr = StrInit();
+        SysStrError (errno, &errstr);
+        LOG_ERROR ("Failed to open file temporary file : %s", errstr.data);
+        StrDeinit (&errstr);
+        return R_CMD_STATUS_OK;
+    }
+
+    fseek (fp, 0, SEEK_END);
+    u64 new_code_length = ftell (fp);
+    rewind (fp);
+
+    Str new_code = StrInit();
+    StrReserve (&new_code, new_code_length);
+    fread (new_code.data, 1, new_code_length, fp);
+    new_code.data[new_code_length] = '\0';
+    fclose (fp);
 
 
+    if (0 != StrCmp (&new_code, &code)) {
+        DISPLAY_INFO ("User made changes to decompilation. Diffing and updating...");
+    } else {
+        DISPLAY_INFO("Nothing changed!");        
+    }
+
+    // TODO: take diff and update comments
 
     return R_CMD_STATUS_OK;
 }
@@ -1197,7 +1297,7 @@ R_IPI RCmdStatus
     r_update_decompilation_comments_handler (RCore* core, int argc, const char** argv) {
     const char* fn_name = NULL;
     if (ZSTR_ARG (fn_name, 1)) {
-        return updateDecompilerComments (code, fn_name, false);
+        return updateDecompilerComments (core, fn_name, false);
     }
     return R_CMD_STATUS_WRONG_ARGS;
 }
