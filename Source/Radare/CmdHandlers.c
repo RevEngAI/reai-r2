@@ -460,23 +460,33 @@ static inline Str getAiDecompilation (
         VecForeachPtrIdx (&decompilation_lines, line, line_idx, {
             Str comment_block = StrInit();
 
+            // Check if any comments START at this line (1-indexed)
+            // Collect comments for this line first to maintain correct order
+            Vec(Comment) line_comments = VecInit();
+            
+            // Use reverse iteration to safely remove elements during iteration
             VecForeachPtrReverseIdx (&comments, comment, comment_idx, {
-                if (line_idx + 1 >= comment->context.start_line &&
-                    line_idx + 1 <= comment->context.end_line) {
-                    StrAppendf (&comment_block, "//> %s\n", comment->content.data);
-                    if (p_comments) {
-                        Comment c;
-                        VecRemove (&comments, &c, comment_idx);
-                        VecPushBack (p_comments, c);
-                    } else {
-                        VecDelete (&comments, comment_idx);
-                    }
+                if (line_idx + 1 == comment->context.start_line) {
+                    Comment c;
+                    VecRemove (&comments, &c, comment_idx);
+                    VecPushBack (&line_comments, c); // Will be in reverse order
                 }
             });
+            
+            // Add comments in correct order (reverse the reverse)
+            VecForeachPtrReverseIdx (&line_comments, comment, idx, {
+                StrAppendf (&comment_block, "//> %s\n", comment->content.data);
+                if (p_comments) {
+                    Comment c = *comment;
+                    VecPushBack (p_comments, c);
+                }
+            });
+            
+            VecDeinit (&line_comments);
 
             StrAppendf (
                 &final_code,
-                "\n%s%s\n",
+                "%s%s\n",
                 comment_block.data ? comment_block.data : "",
                 line->data
             );
@@ -1255,10 +1265,8 @@ static inline bool isUserComment (Str* str) {
         i++;
     }
 
-    // Check if remaining string starts with "//>", 
-    if (i + 3 <= str->length && 
-        str->data[i] == '/' && 
-        str->data[i + 1] == '/' && 
+    // Check if remaining string starts with "//>",
+    if (i + 3 <= str->length && str->data[i] == '/' && str->data[i + 1] == '/' &&
         str->data[i + 2] == '>') {
         return true;
     }
@@ -1278,22 +1286,17 @@ static inline Str extractCommentString (Str* comment_line) {
     }
 
     // Skip "//>" prefix
-    if (i + 3 <= comment_line->length && 
-        comment_line->data[i] == '/' && 
-        comment_line->data[i + 1] == '/' && 
-        comment_line->data[i + 2] == '>') {
+    if (i + 3 <= comment_line->length && comment_line->data[i] == '/' &&
+        comment_line->data[i + 1] == '/' && comment_line->data[i + 2] == '>') {
         i += 3;
-        
-        // Skip any whitespace after "//>", 
+
+        // Skip any whitespace after "//>",
         while (i < comment_line->length && isspace (comment_line->data[i])) {
             i++;
         }
-        
+
         // Return the remaining string as the comment content
-        return StrInitFromCstr (
-            comment_line->data + i,
-            comment_line->length - i
-        );
+        return StrInitFromCstr (comment_line->data + i, comment_line->length - i);
     }
 
     return StrInit();
@@ -1319,6 +1322,169 @@ Comment* findComment (Str* to_search, Comments* comments) {
     return NULL;
 }
 
+static inline u64 findLineInOriginalDecompilation(Str* line_content, Strs* original_dec) {
+    if (!line_content || !original_dec) {
+        return 0;
+    }
+    
+    Str content_stripped = StrStrip(line_content, NULL);
+    u64 found_line = 0;
+    
+    VecForeachPtrIdx(original_dec, orig_line, orig_idx, {
+        Str orig_stripped = StrStrip(orig_line, NULL);
+        if (StrCmp(&content_stripped, &orig_stripped) == 0) {
+            found_line = orig_idx + 1; // Convert to 1-indexed
+            StrDeinit(&orig_stripped);
+            break;
+        }
+        StrDeinit(&orig_stripped);
+    });
+    
+    StrDeinit(&content_stripped);
+    return found_line;
+}
+
+typedef enum {
+    COMMENT_OP_CREATE,
+    COMMENT_OP_DELETE,
+    COMMENT_OP_UPDATE
+} CommentOperationType;
+
+typedef struct {
+    CommentOperationType type;
+    union {
+        struct {
+            Str content;
+            u64 start_line;
+            u64 end_line;
+        } create;
+        struct {
+            u64 comment_id;
+            Str content; // For logging purposes
+        } delete;
+        struct {
+            u64 comment_id;
+            Str old_content; // For logging purposes
+            Str new_content;
+        } update;
+    };
+} CommentOperation;
+
+static inline void CommentOperationDeinit(CommentOperation* op) {
+    if (!op) return;
+    
+    switch (op->type) {
+        case COMMENT_OP_CREATE:
+            StrDeinit(&op->create.content);
+            break;
+        case COMMENT_OP_DELETE:
+            StrDeinit(&op->delete.content);
+            break;
+        case COMMENT_OP_UPDATE:
+            StrDeinit(&op->update.old_content);
+            StrDeinit(&op->update.new_content);
+            break;
+    }
+}
+
+typedef Vec(CommentOperation) CommentOperations;
+
+static inline CommentOperation CommentOperationInitCreate(Str* content, u64 start_line, u64 end_line) {
+    CommentOperation op = {0};
+    op.type = COMMENT_OP_CREATE;
+    op.create.content = StrDup(content);
+    op.create.start_line = start_line;
+    op.create.end_line = end_line;
+    return op;
+}
+
+static inline CommentOperation CommentOperationInitDelete(u64 comment_id, Str* content) {
+    CommentOperation op = {0};
+    op.type = COMMENT_OP_DELETE;
+    op.delete.comment_id = comment_id;
+    op.delete.content = StrDup(content);
+    return op;
+}
+
+static inline CommentOperation CommentOperationInitUpdate(u64 comment_id, Str* old_content, Str* new_content) {
+    CommentOperation op = {0};
+    op.type = COMMENT_OP_UPDATE;
+    op.update.comment_id = comment_id;
+    op.update.old_content = StrDup(old_content);
+    op.update.new_content = StrDup(new_content);
+    return op;
+}
+
+static inline bool executeCommentOperations(FunctionId function_id, CommentOperations* operations) {
+    bool all_success = true;
+    
+    VecForeachPtr(operations, op, {
+        switch (op->type) {
+            case COMMENT_OP_CREATE: {
+                if (AddAiDecompilationComment(
+                        GetConnection(),
+                        function_id,
+                        &op->create.content,
+                        op->create.start_line,
+                        op->create.end_line
+                    )) {
+                    r_cons_printf(
+                        "+ (%llu, %llu) %s\n",
+                        op->create.start_line,
+                        op->create.end_line,
+                        op->create.content.data
+                    );
+                } else {
+                    LOG_ERROR("Failed to create comment: %s", op->create.content.data);
+                    r_cons_printf("!+ (?, ?) %s\n", op->create.content.data);
+                    all_success = false;
+                }
+                break;
+            }
+            
+            case COMMENT_OP_DELETE: {
+                if (DeleteAiDecompilationComment(
+                        GetConnection(),
+                        function_id,
+                        op->delete.comment_id
+                    )) {
+                    r_cons_printf("- %s\n", op->delete.content.data);
+                } else {
+                    LOG_ERROR("Failed to delete comment: %s", op->delete.content.data);
+                    r_cons_printf("!- %s\n", op->delete.content.data);
+                    all_success = false;
+                }
+                break;
+            }
+            
+            case COMMENT_OP_UPDATE: {
+                if (UpdateAiDecompilationComment(
+                        GetConnection(),
+                        function_id,
+                        op->update.comment_id,
+                        &op->update.new_content
+                    )) {
+                    r_cons_printf("~ %s\n", op->update.new_content.data);
+                } else {
+                    LOG_ERROR("Failed to update comment from '%s' to '%s'", 
+                             op->update.old_content.data, op->update.new_content.data);
+                    r_cons_printf(
+                        "!~ Failed to update comment.\n"
+                        "   OLD : %s\n"
+                        "   NEW : %s\n",
+                        op->update.old_content.data,
+                        op->update.new_content.data
+                    );
+                    all_success = false;
+                }
+                break;
+            }
+        }
+    });
+    
+    return all_success;
+}
+
 bool getCommentRange (
     DiffLines* diff,
     Strs*      original_dec,
@@ -1332,87 +1498,169 @@ bool getCommentRange (
 
     LOG_INFO ("getCommentRange: search_start=%llu, diff->length=%zu", search_start, diff->length);
 
-    for (u64 s = search_start; s < diff->length; s++) {
+    u64 s = search_start;
+    while (s < diff->length) {
         DiffLine* dl = VecPtrAt (diff, s);
         LOG_INFO ("getCommentRange: processing diff line %llu, type=%c", s, (char)dl->type);
 
-        // skip all following comments
-        bool found_comment = true;
-        while (found_comment && s < diff->length) {
+        // PHASE 1: skip all following comments
+        while (s < diff->length) {
+            dl = VecPtrAt (diff, s);
+            bool is_comment = false;
+            
             switch (dl->type) {
-                case DIFF_TYPE_MOD :
-                case DIFF_TYPE_MOV : {
-                    if (isUserComment (&dl->mod.new_content)) {
-                        s++;
-                        if (s < diff->length) {
-                            dl = VecPtrAt (diff, s);
-                        }
-                        found_comment = true;
-                    } else {
-                        found_comment = false;
-                    }
+                case DIFF_TYPE_MOD : {
+                    is_comment = isUserComment (&dl->mod.new_content);
                     break;
                 }
-
+                case DIFF_TYPE_MOV : {
+                    is_comment = isUserComment (&dl->mov.new_content);
+                    break;
+                }
                 case DIFF_TYPE_REM :
                 case DIFF_TYPE_ADD :
                 case DIFF_TYPE_SAM : {
-                    if (isUserComment (&dl->sam.content)) {
-                        s++;
-                        if (s < diff->length) {
-                            dl = VecPtrAt (diff, s);
-                        }
-                        found_comment = true;
-                    } else {
-                        found_comment = false;
-                    }
+                    is_comment = isUserComment (&dl->sam.content);
                     break;
                 }
-
                 default : {
                     LOG_FATAL ("Unreachable code reached. Invalid diff line type");
                 }
             }
+            
+            if (is_comment) {
+                s++;
+            } else {
+                break; // Found non-comment, exit comment-skipping phase
+            }
         }
 
-        // find modified code lines from decompilation output
+        // PHASE 2: find modified code lines from decompilation output
         // a continuous sequence of modified code lines defines our range
-        *out_start = -1;
-        *out_end   = -1;
+        *out_start = (u64)-1;
+        *out_end   = (u64)-1;
         LOG_INFO ("getCommentRange: starting range detection at diff line %llu", s);
+        
         while (s < diff->length) {
+            dl = VecPtrAt (diff, s);
+            
             switch (dl->type) {
                 case DIFF_TYPE_MOD : {
-                    if (*out_start == (u64)-1) {
-                        *out_start = dl->mod.new_line;
+                    u64 found_line = findLineInOriginalDecompilation(&dl->mod.old_content, original_dec);
+                    
+                    if (found_line > 0) {
+                        if (*out_start == (u64)-1) {
+                            *out_start = found_line;
+                        }
+                        *out_end = found_line;
+                        LOG_INFO (
+                            "getCommentRange: found MOD line at original line %llu, range now (%llu, %llu)",
+                            found_line, *out_start, *out_end
+                        );
+                    } else {
+                        LOG_ERROR("Could not find MOD line content in original decompilation: %s", dl->mod.old_content.data);
                     }
-
-                    *out_end = dl->mod.new_line;
-                    LOG_INFO ("getCommentRange: found MOD line, range now (%llu, %llu)", *out_start, *out_end);
                     break;
                 }
 
-                case DIFF_TYPE_MOV :
-                case DIFF_TYPE_SAM :
-                case DIFF_TYPE_REM :
-                case DIFF_TYPE_ADD : {
-                    LOG_INFO ("getCommentRange: hit non-MOD line (type=%c), returning %s", (char)dl->type, (*out_start != (u64)-1) ? "true" : "false");
+                case DIFF_TYPE_REM : {
+                    // Check if this REM is followed by an ADD (indicating a modification)
+                    if (dl->rem.content.length > 0 && !isUserComment (&dl->rem.content)) {
+                        // Look ahead to see if next line is an ADD
+                        if (s + 1 < diff->length) {
+                            DiffLine* next_dl = VecPtrAt (diff, s + 1);
+                            if (next_dl->type == DIFF_TYPE_ADD && 
+                                next_dl->add.content.length > 0 && 
+                                !isUserComment (&next_dl->add.content)) {
+                                // This is a REM-ADD pair representing a modification
+                                u64 found_line = findLineInOriginalDecompilation(&dl->rem.content, original_dec);
+                                
+                                if (found_line > 0) {
+                                    if (*out_start == (u64)-1) {
+                                        *out_start = found_line;
+                                    }
+                                    *out_end = found_line;
+                                    LOG_INFO (
+                                        "getCommentRange: found REM-ADD pair at original line %llu, range now (%llu, %llu)",
+                                        found_line, *out_start, *out_end
+                                    );
+                                } else {
+                                    LOG_ERROR("Could not find REM line content in original decompilation: %s", dl->rem.content.data);
+                                }
+                                s++; // Skip the next ADD since we've processed it
+                                break;
+                            }
+                        }
+                    }
+                    // If not part of REM-ADD pair, this marks end of range
+                    if (dl->rem.content.length == 0) {
+                        break; // Skip empty lines
+                    }
+                    LOG_INFO (
+                        "getCommentRange: hit standalone REM line (type=%c), returning %s",
+                        (char)dl->type,
+                        (*out_start != (u64)-1) ? "true" : "false"
+                    );
                     return *out_start != (u64)-1;
+                }
+
+                case DIFF_TYPE_ADD : {
+                    // If this ADD is not part of a REM-ADD pair, it marks end of range
+                    if (dl->add.content.length == 0) {
+                        break; // Skip empty lines
+                    }
+                    LOG_INFO (
+                        "getCommentRange: hit standalone ADD line (type=%c), returning %s",
+                        (char)dl->type,
+                        (*out_start != (u64)-1) ? "true" : "false"
+                    );
+                    return *out_start != (u64)-1;
+                }
+
+                case DIFF_TYPE_MOV : {
+                    if (dl->mov.new_content.length == 0) {
+                        break; // Skip empty lines
+                    }
+                    LOG_INFO (
+                        "getCommentRange: hit MOV line (type=%c), returning %s",
+                        (char)dl->type,
+                        (*out_start != (u64)-1) ? "true" : "false"
+                    );
+                    return *out_start != (u64)-1;
+                }
+
+                case DIFF_TYPE_SAM : {
+                    if (dl->sam.content.length == 0) {
+                        break; // Skip empty lines
+                    }
+                    LOG_INFO (
+                        "getCommentRange: hit SAM line (type=%c), returning %s",
+                        (char)dl->type,
+                        (*out_start != (u64)-1) ? "true" : "false"
+                    );
+                    return *out_start != (u64)-1;
+                }
+
+                default : {
+                    LOG_FATAL ("Unreachable code reached. Invalid diff line type: %c", (char)dl->type);
                 }
             }
 
             s++;
-            if (s < diff->length) {
-                dl = VecPtrAt (diff, s);
-            }
         }
 
         // If we exit the while loop because we reached the end of diff,
-        // and we found some MOD lines, return the range
+        // and we found some MOD/ADD lines, return the range
         if (*out_start != (u64)-1) {
-            LOG_INFO ("getCommentRange: reached end of diff, returning range (%llu, %llu)", *out_start, *out_end);
+            LOG_INFO (
+                "getCommentRange: reached end of diff, returning range (%llu, %llu)",
+                *out_start,
+                *out_end
+            );
             return true;
         }
+        
+        break; // Exit outer loop if no range found
     }
 
     LOG_INFO ("getCommentRange: reached end of function, returning false");
@@ -1470,40 +1718,50 @@ R_IPI RCmdStatus
     StrReserve (&new_code, new_code_length);
     fread (new_code.data, 1, new_code_length, fp);
     new_code.data[new_code_length] = '\0';
-    new_code.length = new_code_length;
+    new_code.length                = new_code_length;
     fclose (fp);
 
     // get lines from original decompilation string
     // without comments, without summary, just vanilla decompilation
     Strs original_decomp = StrSplit (&ai_decomp.decompilation, "\n");
 
+    // Initialize operations collection
+    CommentOperations operations = VecInitWithDeepCopy(NULL, CommentOperationDeinit);
+    bool validation_passed = true;
+
     DiffLines diff = GetDiff (&code, &new_code);
     VecForeachPtrIdx (&diff, d, diff_line_idx, {
         switch (d->type) {
             case DIFF_TYPE_SAM : {
+                if (!d->sam.content.length) {
+                    break;
+                }
                 if (isUserComment (&d->sam.content)) {
-                    DISPLAY_INFO ("= %s", d->sam.content.data);
+                    r_cons_printf ("= %s\n", d->sam.content.data);
                 }
                 break;
             }
 
             case DIFF_TYPE_REM : {
+                if (!d->rem.content.length) {
+                    break;
+                }
                 if (isUserComment (&d->rem.content)) {
                     Comment* comment = findComment (&d->rem.content, &comments);
                     if (comment) {
-                        if (DeleteAiDecompilationComment (
-                                GetConnection(),
-                                function_id,
-                                comment->id
-                            )) {
-                            DISPLAY_INFO ("- %s", comment->content.data);
-                        } else {
-                            DISPLAY_ERROR ("!- %s", comment->content.data);
-                        }
+                        CommentOperation op = CommentOperationInitDelete(comment->id, &comment->content);
+                        VecPushBack(&operations, op);
                     } else {
-                        LOG_ERROR("Non-existent comment deleted. This might indicate bug in program! : %s", d->rem.content.data);
-                        DISPLAY_ERROR ("Internal error! Please check plugin logs. Contact developers.");
-                        return R_CMD_STATUS_OK;
+                        LOG_ERROR (
+                            "Non-existent comment deleted. This might indicate bug in program! : "
+                            "%s",
+                            d->rem.content.data
+                        );
+                        DISPLAY_ERROR (
+                            "Internal error! Please check plugin logs. Contact developers."
+                        );
+                        validation_passed = false;
+                        break;
                     }
                 } else {
                     DISPLAY_ERROR (
@@ -1512,11 +1770,15 @@ R_IPI RCmdStatus
                         "Deleted line : %s",
                         d->rem.content.data
                     );
+                    validation_passed = false;
                 }
                 break;
             }
 
             case DIFF_TYPE_ADD : {
+                if (!d->add.content.length) {
+                    break;
+                }
                 if (isUserComment (&d->add.content)) {
                     Str comment_content = extractCommentString (&d->add.content);
 
@@ -1530,45 +1792,42 @@ R_IPI RCmdStatus
                             &start_line,
                             &end_line
                         )) {
-                        if (AddAiDecompilationComment (
-                                GetConnection(),
-                                function_id,
-                                &comment_content,
-                                start_line,
-                                end_line
-                            )) {
-                            DISPLAY_INFO (
-                                "+ (%llu, %llu) %s",
-                                start_line,
-                                end_line,
-                                comment_content.data
-                            );
-                        } else {
-                            DISPLAY_INFO ("!+ (?, ?) %s", comment_content.data);
-                        }
+                        CommentOperation op = CommentOperationInitCreate(&comment_content, start_line, end_line);
+                        VecPushBack(&operations, op);
                     } else {
                         DISPLAY_ERROR (
                             "Failed to get comment region for a comment.\n"
                             "Did you forget to indent code to specify comment region?"
                         );
+                        validation_passed = false;
                     }
 
                     StrDeinit (&comment_content);
                 } else {
-                    DISPLAY_ERROR (
-                        "Diff shows addition of a non-comment line! "
-                        "Please make changes to comments only!\n"
-                        "All user-comments must begin with prefix //>\n"
-                        "Added line : %s",
-                        d->add.content.data
-                    );
+                    // Check if this is just structural code (like braces, empty lines)
+                    Str trimmed = StrStrip (&d->add.content, NULL);
+                    if (trimmed.length == 0 || 
+                        (trimmed.length == 1 && (trimmed.data[0] == '{' || trimmed.data[0] == '}'))) {
+                        // Ignore structural additions like braces or empty lines
+                        LOG_INFO ("Ignoring structural addition: '%s'", d->add.content.data);
+                        StrDeinit (&trimmed);
+                    } else {
+                        DISPLAY_ERROR (
+                            "Diff shows addition of a non-comment line! "
+                            "Please make changes to comments only!\n"
+                            "All user-comments must begin with prefix //>\n"
+                            "Added line : %s",
+                            d->add.content.data
+                        );
+                        validation_passed = false;
+                        StrDeinit (&trimmed);
+                    }
                 }
                 break;
             }
 
             case DIFF_TYPE_MOD : {
-                if (isUserComment (&d->mod.new_content) &&
-                    isUserComment (&d->mod.old_content)) {
+                if (isUserComment (&d->mod.new_content) && isUserComment (&d->mod.old_content)) {
                     // get exact old comment string, skipping whitespaces
                     // this will also help us find comment id for comment to be updated
                     Str old_comment_content = extractCommentString (&d->mod.old_content);
@@ -1577,34 +1836,21 @@ R_IPI RCmdStatus
                     Comment* old_comment = findComment (&old_comment_content, &comments);
                     if (!old_comment) {
                         LOG_ERROR (
-                            "Non-existent comment deleted. This might indicate bug in program!"
+                            "Non-existent comment updated. This might indicate bug in program!"
                         );
                         DISPLAY_ERROR (
                             "Internal error. Please check plugin logs. Contact developers."
                         );
-                        return R_CMD_STATUS_OK;
+                        validation_passed = false;
+                        StrDeinit (&old_comment_content);
+                        break;
                     }
 
                     // get exact new comment, skipping whitespaces
                     Str new_comment_content = extractCommentString (&d->mod.new_content);
 
-
-                    if (UpdateAiDecompilationComment (
-                            GetConnection(),
-                            function_id,
-                            old_comment->id,
-                            &new_comment_content
-                        )) {
-                        DISPLAY_INFO ("~ %s", new_comment_content.data);
-                    } else {
-                        DISPLAY_ERROR (
-                            "Failed to update comment.\n"
-                            "OLD : %s\n"
-                            "NEW : %s",
-                            old_comment_content.data,
-                            new_comment_content.data
-                        );
-                    }
+                    CommentOperation op = CommentOperationInitUpdate(old_comment->id, &old_comment_content, &new_comment_content);
+                    VecPushBack(&operations, op);
 
                     StrDeinit (&new_comment_content);
                     StrDeinit (&old_comment_content);
@@ -1619,6 +1865,7 @@ R_IPI RCmdStatus
                             "Modified line : %s",
                             d->mod.new_content.data
                         );
+                        validation_passed = false;
                     }
                     StrDeinit (&old_trimmed);
                     StrDeinit (&new_trimmed);
@@ -1627,59 +1874,44 @@ R_IPI RCmdStatus
             }
 
             case DIFF_TYPE_MOV : {
+                if (!d->mov.new_content.length && !d->mov.old_content.length) {
+                    break;
+                }
                 // NOTE: In case of mov, new_content and old_content are exactly same
                 // but are clones of each other, hence pointers are not same!
                 if (isUserComment (&d->mov.new_content)) {
                     // remove old comment
                     Comment* old_comment = findComment (&d->mov.old_content, &comments);
                     if (old_comment) {
-                        if (DeleteAiDecompilationComment (
-                                GetConnection(),
-                                function_id,
-                                old_comment->id
+                        // Create delete operation
+                        CommentOperation delete_op = CommentOperationInitDelete(old_comment->id, &old_comment->content);
+                        VecPushBack(&operations, delete_op);
+
+                        // add new comment with new range
+                        u64 start_line = 0;
+                        u64 end_line   = 0;
+                        if (getCommentRange (
+                                &diff,
+                                &original_decomp,
+                                diff_line_idx,
+                                &start_line,
+                                &end_line
                             )) {
-                            DISPLAY_INFO ("- %s", old_comment->content.data);
+                            CommentOperation create_op = CommentOperationInitCreate(&old_comment->content, start_line, end_line);
+                            VecPushBack(&operations, create_op);
                         } else {
-                            DISPLAY_ERROR ("!- %s", old_comment->content.data);
+                            DISPLAY_ERROR (
+                                "Failed to get comment region for a moved comment.\n"
+                                "Did you forget to indent code to specify comment region?"
+                            );
+                            validation_passed = false;
                         }
                     } else {
                         DISPLAY_ERROR (
                             "Diff shows movement of a non-existent comment!\n\t%s\n",
                             d->mov.old_content.data
                         );
-                    }
-
-                    // add new comment with new range
-                    u64 start_line = 0;
-                    u64 end_line   = 0;
-                    if (getCommentRange (
-                            &diff,
-                            &original_decomp,
-                            diff_line_idx,
-                            &start_line,
-                            &end_line
-                        )) {
-                        if (AddAiDecompilationComment (
-                                GetConnection(),
-                                function_id,
-                                &old_comment->content,
-                                start_line,
-                                end_line
-                            )) {
-                            DISPLAY_INFO (
-                                "+ (%llu, %llu) %s",
-                                start_line,
-                                end_line,
-                                old_comment->content.data
-                            );
-                        } else {
-                            DISPLAY_INFO ("!+ (?, ?) %s", old_comment->content.data);
-                        }
-                    } else {
-                        DISPLAY_ERROR (
-                            "Failed to get comment region for a moved comment.\n"
-                            "Did you forget to indent code to specify comment region?"
-                        );
+                        validation_passed = false;
                     }
                 }
                 break;
@@ -1689,7 +1921,26 @@ R_IPI RCmdStatus
                 LOG_FATAL ("Unreachable code reached : invalid diff line type");
             }
         }
+        
+        // Break out of diff processing if validation failed
+        if (!validation_passed) {
+            break;
+        }
     });
+
+    // Execute operations only if validation passed
+    if (validation_passed) {
+        LOG_INFO("Validation passed. Executing %zu comment operations.", operations.length);
+        bool execution_success = executeCommentOperations(function_id, &operations);
+        if (!execution_success) {
+            DISPLAY_ERROR("Some comment operations failed during execution. Check logs for details.");
+        }
+    } else {
+        DISPLAY_ERROR("Validation failed. No comment operations will be executed.");
+    }
+
+    // Clean up operations
+    VecDeinit(&operations);
 
     // Clean up resources
     VecDeinit (&comments);
