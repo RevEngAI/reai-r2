@@ -10,6 +10,9 @@
 #include <Reai/Config.h>
 #include <Reai/Log.h>
 #include <Reai/Types.h>
+#include <Reai/Util/Str.h>
+#include <Reai/Sys.h>
+#include <Reai/Diff.h>
 
 /* radare */
 #include <r_anal.h>
@@ -24,6 +27,9 @@
 
 /* local includes */
 #include <Plugin.h>
+#include <stdlib.h>
+#include "Reai/Api/Types/AiDecompilation.h"
+#include "Reai/Util/Vec.h"
 
 // TODO: restrict to debug symbols only
 
@@ -406,6 +412,164 @@ R_IPI RCmdStatus
     return functionSimilaritySearch (core, argc, argv, true);
 }
 
+static inline Str getAiDecompilation (
+    FunctionId       fn_id,
+    bool             colorize,
+    AiDecompilation* ai_decomp,
+    Comments*        p_comments
+) {
+    if (!fn_id) {
+        LOG_FATAL ("Invalid function Id provided. Expected a non-zero value.");
+        return StrInit();
+    }
+
+    AiDecompilation aidec = GetAiDecompilation (GetConnection(), fn_id, true);
+
+    Str summary = StrDup (&aidec.raw_ai_summary);
+
+    static i32 SOFT_LIMIT = 120;
+
+    i32   l = summary.length;
+    char* p = summary.data;
+    while (l > SOFT_LIMIT) {
+        char* p1 = strchr (p + SOFT_LIMIT, ' ');
+        if (p1) {
+            StrAppendf (&summary, "// %.*s\n", (i32)(p1 - p), p);
+            p1++;
+            l -= (p1 - p);
+            p  = p1;
+        } else {
+            break;
+        }
+    }
+
+    // TODO: use colorize switch to optionally wrap replaced texts into colors
+
+    Str decompilation = StrDup (&aidec.raw_decompilation);
+
+    Str final_code = StrInit();
+
+    Comments comments = GetAiDecompilationComments (GetConnection(), fn_id);
+    if (p_comments) {
+        *p_comments = (Comments)VecInitWithDeepCopy (NULL, CommentDeinit);
+    }
+    if (comments.length) {
+        Strs decompilation_lines = StrSplit (&decompilation, "\n");
+        StrDeinit (&decompilation);
+
+        VecForeachPtrIdx (&decompilation_lines, line, line_idx, {
+            Str comment_block = StrInit();
+
+            // Check if any comments START at this line (1-indexed)
+            // Collect comments for this line first to maintain correct order
+            Vec(Comment) line_comments = VecInit();
+            
+            // Use reverse iteration to safely remove elements during iteration
+            VecForeachPtrReverseIdx (&comments, comment, comment_idx, {
+                if (line_idx + 1 == comment->context.start_line) {
+                    Comment c;
+                    VecRemove (&comments, &c, comment_idx);
+                    VecPushBack (&line_comments, c); // Will be in reverse order
+                }
+            });
+            
+            // Add comments in correct order (reverse the reverse)
+            VecForeachPtrReverseIdx (&line_comments, comment, idx, {
+                StrAppendf (&comment_block, "//> %s\n", comment->content.data);
+                if (p_comments) {
+                    Comment c = *comment;
+                    VecPushBack (p_comments, c);
+                }
+            });
+            
+            VecDeinit (&line_comments);
+
+            StrAppendf (
+                &final_code,
+                "%s%s\n",
+                comment_block.data ? comment_block.data : "",
+                line->data
+            );
+        });
+    } else {
+        final_code = decompilation;
+    }
+
+    if (comments.length) {
+        DISPLAY_ERROR ("Comments remaining! Not all added!");
+        VecDeinit (&comments);
+    }
+
+    decompilation = final_code;
+
+    LOG_INFO ("aidec.functions.length = %zu", aidec.functions.length);
+    VecForeachIdx (&aidec.functions, function, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<DISASM_FUNCTION_%llu>", idx);
+        StrReplace (&decompilation, &dname, &function.name, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.strings.length = %zu", aidec.strings.length);
+    VecForeachIdx (&aidec.strings, string, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<DISASM_STRING_%llu>", idx);
+        StrReplace (&decompilation, &dname, &string.string, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.unmatched.functions.length = %zu", aidec.unmatched.functions.length);
+    VecForeachIdx (&aidec.unmatched.functions, function, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<UNMATCHED_FUNCTION_%llu>", idx);
+        StrReplace (&decompilation, &dname, &function.name, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.unmatched.strings.length = %zu", aidec.unmatched.strings.length);
+    VecForeachIdx (&aidec.unmatched.strings, string, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<UNMATCHED_STRING_%llu>", idx);
+        StrReplace (&decompilation, &dname, &string.value.str, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.unmatched.vars.length = %zu", aidec.unmatched.vars.length);
+    VecForeachIdx (&aidec.unmatched.vars, var, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<VAR_%llu>", idx);
+        StrReplace (&decompilation, &dname, &var.value.str, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.unmatched.external_vars.length = %zu", aidec.unmatched.external_vars.length);
+    VecForeachIdx (&aidec.unmatched.external_vars, var, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<EXTERNAL_VARIABLE_%llu>", idx);
+        StrReplace (&decompilation, &dname, &var.value.str, -1);
+        StrDeinit (&dname);
+    });
+
+    LOG_INFO ("aidec.unmatched.custom_types.length = %zu", aidec.unmatched.custom_types.length);
+    VecForeachIdx (&aidec.unmatched.custom_types, var, idx, {
+        Str dname = StrInit();
+        StrPrintf (&dname, "<CUSTOM_TYPE_%llu>", idx);
+        StrReplace (&decompilation, &dname, &var.value.str, -1);
+        StrDeinit (&dname);
+    });
+
+    if (ai_decomp) {
+        *ai_decomp = aidec;
+    } else {
+        AiDecompilationDeinit (&aidec);
+    }
+
+    return decompilation;
+}
+
+/**
+ * "REda"
+ * */
 R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** argv) {
     LOG_INFO ("[CMD] AI decompile");
     const char* fn_name = NULL;
@@ -465,104 +629,9 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
 
                 case STATUS_SUCCESS : {
                     DISPLAY_INFO ("AI decompilation complete ;-)\n");
-
-                    AiDecompilation aidec = GetAiDecompilation (GetConnection(), fn_id, true);
-                    Str*            smry  = &aidec.raw_ai_summary;
-                    Str*            dec   = &aidec.raw_decompilation;
-
-                    Str code = StrInit();
-
-                    static i32 SOFT_LIMIT = 120;
-
-                    i32   l = smry->length;
-                    char* p = smry->data;
-                    while (l > SOFT_LIMIT) {
-                        char* p1 = strchr (p + SOFT_LIMIT, ' ');
-                        if (p1) {
-                            StrAppendf (&code, "// %.*s\n", (i32)(p1 - p), p);
-                            p1++;
-                            l -= (p1 - p);
-                            p  = p1;
-                        } else {
-                            break;
-                        }
-                    }
-                    StrAppendf (&code, "// %.*s\n\n", (i32)l, p);
-                    StrMerge (&code, dec);
-
-                    LOG_INFO ("aidec.functions.length = %zu", aidec.functions.length);
-                    VecForeachIdx (&aidec.functions, function, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<DISASM_FUNCTION_%llu>", idx);
-                        StrReplace (&code, &dname, &function.name, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO ("aidec.strings.length = %zu", aidec.strings.length);
-                    VecForeachIdx (&aidec.strings, string, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<DISASM_STRING_%llu>", idx);
-                        StrReplace (&code, &dname, &string.string, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO (
-                        "aidec.unmatched.functions.length = %zu",
-                        aidec.unmatched.functions.length
-                    );
-                    VecForeachIdx (&aidec.unmatched.functions, function, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<UNMATCHED_FUNCTION_%llu>", idx);
-                        StrReplace (&code, &dname, &function.name, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO (
-                        "aidec.unmatched.strings.length = %zu",
-                        aidec.unmatched.strings.length
-                    );
-                    VecForeachIdx (&aidec.unmatched.strings, string, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<UNMATCHED_STRING_%llu>", idx);
-                        StrReplace (&code, &dname, &string.value.str, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO ("aidec.unmatched.vars.length = %zu", aidec.unmatched.vars.length);
-                    VecForeachIdx (&aidec.unmatched.vars, var, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<VAR_%llu>", idx);
-                        StrReplace (&code, &dname, &var.value.str, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO (
-                        "aidec.unmatched.external_vars.length = %zu",
-                        aidec.unmatched.external_vars.length
-                    );
-                    VecForeachIdx (&aidec.unmatched.external_vars, var, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<EXTERNAL_VARIABLE_%llu>", idx);
-                        StrReplace (&code, &dname, &var.value.str, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    LOG_INFO (
-                        "aidec.unmatched.custom_types.length = %zu",
-                        aidec.unmatched.custom_types.length
-                    );
-                    VecForeachIdx (&aidec.unmatched.custom_types, var, idx, {
-                        Str dname = StrInit();
-                        StrPrintf (&dname, "<CUSTOM_TYPE_%llu>", idx);
-                        StrReplace (&code, &dname, &var.value.str, -1);
-                        StrDeinit (&dname);
-                    });
-
-                    // print decompiled code with summary
-                    r_cons_println (code.data);
-
-                    StrDeinit (&code);
-                    AiDecompilationDeinit (&aidec);
+                    Str dec = getAiDecompilation (fn_id, true, NULL, NULL);
+                    r_cons_println (dec.data);
+                    StrDeinit (&dec);
                     return R_CMD_STATUS_OK;
                 }
                 default :
@@ -976,7 +1045,8 @@ R_IPI RCmdStatus r_analysis_link_handler (RCore* core, int argc, const char** ar
         if (!bid) {
             DISPLAY_ERROR (
                 "No existing analysis attached to current session, and no binary id provided.\n"
-                "Please create a new analysis or apply an existing one, or provide a valid binary "
+                "Please create a new analysis or apply an existing one, or provide a valid "
+                "binary "
                 "id"
             );
             return R_CMD_STATUS_WRONG_ARGS;
@@ -1046,7 +1116,8 @@ R_IPI RCmdStatus
     if (!binary_id && !GetBinaryId()) {
         DISPLAY_ERROR (
             "No RevEngAI analysis attached with current session.\n"
-            "Either provide an analysis id, apply an existing analysis or create a new analysis\n"
+            "Either provide an analysis id, apply an existing analysis or create a new "
+            "analysis\n"
         );
         return R_CMD_STATUS_WRONG_ARGS;
     }
@@ -1054,7 +1125,8 @@ R_IPI RCmdStatus
     AnalysisId analysis_id = AnalysisIdFromBinaryId (GetConnection(), GetBinaryId());
     if (!analysis_id) {
         DISPLAY_ERROR (
-            "Failed to get analysis id from binary id. Please check validity of provided binary id"
+            "Failed to get analysis id from binary id. Please check validity of provided "
+            "binary id"
         );
         return R_CMD_STATUS_OK;
     }
@@ -1064,7 +1136,8 @@ R_IPI RCmdStatus
         r_cons_println (logs.data);
     } else {
         DISPLAY_ERROR (
-            "Failed to get analysis logs. Please check your internet connection, and plugin log "
+            "Failed to get analysis logs. Please check your internet connection, and plugin "
+            "log "
             "file."
         );
         return R_CMD_STATUS_OK;
@@ -1133,6 +1206,776 @@ R_IPI RCmdStatus r_get_recent_analyses_handler (RCore* core, int argc, const cha
 R_IPI RCmdStatus
     r_ann_auto_analyze_restrict_debug_handler (RCore* core, int argc, const char** argv) {
     return autoAnalyze (core, argc, argv, true);
+}
+
+/// Launches the given editor with the given filepath and waits for it to exit.
+/// Handles both GUI and terminal editors.
+static inline int launchEditorAndWait (Str* user_editor, const char* filepath) {
+    // Choose default editor if not specified
+    const char* editor = user_editor ? user_editor->data :
+#ifdef _WIN32
+                                       "notepad";
+#elif __APPLE__
+                                       "open -W -n -e TextEdit";
+#else
+                                       "nano";
+#endif
+
+    Str command = StrInit();
+    StrPrintf (&command, "%s \"%s\"", editor, filepath);
+
+    LOG_INFO ("Launching editor command = %s", command.data);
+
+#ifdef _WIN32
+    // Use system() on Windows — simple, no forking
+    int res = system (command);
+
+    StrDeinit (&command);
+    return res;
+#else
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Child process
+        execl ("/bin/sh", "sh", "-c", command.data, (char*)NULL);
+        perror ("execl failed");
+        StrDeinit (&command);
+        exit (127);
+    } else if (pid > 0) {
+        // Parent process waits for terminal editors
+        int status;
+        waitpid (pid, &status, 0);
+        StrDeinit (&command);
+        return WIFEXITED (status) ? WEXITSTATUS (status) : -1;
+    } else {
+        StrDeinit (&command);
+        perror ("fork failed");
+        return -1;
+    }
+#endif
+}
+
+static inline bool isUserComment (Str* str) {
+    if (!str || !str->data) {
+        return false;
+    }
+
+    // Skip leading whitespace
+    u32 i = 0;
+    while (i < str->length && isspace (str->data[i])) {
+        i++;
+    }
+
+    // Check if remaining string starts with "//>",
+    if (i + 3 <= str->length && str->data[i] == '/' && str->data[i + 1] == '/' &&
+        str->data[i + 2] == '>') {
+        return true;
+    }
+
+    return false;
+}
+
+static inline Str extractCommentString (Str* comment_line) {
+    if (!comment_line || !comment_line->data) {
+        return StrInit();
+    }
+
+    // Skip leading whitespace
+    u32 i = 0;
+    while (i < comment_line->length && isspace (comment_line->data[i])) {
+        i++;
+    }
+
+    // Skip "//>" prefix
+    if (i + 3 <= comment_line->length && comment_line->data[i] == '/' &&
+        comment_line->data[i + 1] == '/' && comment_line->data[i + 2] == '>') {
+        i += 3;
+
+        // Skip any whitespace after "//>",
+        while (i < comment_line->length && isspace (comment_line->data[i])) {
+            i++;
+        }
+
+        // Return the remaining string as the comment content
+        return StrInitFromCstr (comment_line->data + i, comment_line->length - i);
+    }
+
+    return StrInit();
+}
+
+Comment* findComment (Str* to_search, Comments* comments) {
+    if (!isUserComment (to_search)) {
+        LOG_FATAL ("Invalid comment start");
+    }
+
+    // skip whitespace
+    u32 off = 3;
+    while (isspace (StrCharAt (to_search, off))) {
+        off++;
+    }
+
+    VecForeachPtr (comments, comment, {
+        if (!strcmp (StrCharPtrAt (to_search, off), comment->content.data)) {
+            return comment;
+        }
+    });
+
+    return NULL;
+}
+
+static inline u64 findLineInOriginalDecompilation(Str* line_content, Strs* original_dec) {
+    if (!line_content || !original_dec) {
+        return 0;
+    }
+    
+    Str content_stripped = StrStrip(line_content, NULL);
+    u64 found_line = 0;
+    
+    VecForeachPtrIdx(original_dec, orig_line, orig_idx, {
+        Str orig_stripped = StrStrip(orig_line, NULL);
+        if (StrCmp(&content_stripped, &orig_stripped) == 0) {
+            found_line = orig_idx + 1; // Convert to 1-indexed
+            StrDeinit(&orig_stripped);
+            break;
+        }
+        StrDeinit(&orig_stripped);
+    });
+    
+    StrDeinit(&content_stripped);
+    return found_line;
+}
+
+typedef enum {
+    COMMENT_OP_CREATE,
+    COMMENT_OP_DELETE,
+    COMMENT_OP_UPDATE
+} CommentOperationType;
+
+typedef struct {
+    CommentOperationType type;
+    union {
+        struct {
+            Str content;
+            u64 start_line;
+            u64 end_line;
+        } create;
+        struct {
+            u64 comment_id;
+            Str content; // For logging purposes
+        } delete;
+        struct {
+            u64 comment_id;
+            Str old_content; // For logging purposes
+            Str new_content;
+        } update;
+    };
+} CommentOperation;
+
+static inline void CommentOperationDeinit(CommentOperation* op) {
+    if (!op) return;
+    
+    switch (op->type) {
+        case COMMENT_OP_CREATE:
+            StrDeinit(&op->create.content);
+            break;
+        case COMMENT_OP_DELETE:
+            StrDeinit(&op->delete.content);
+            break;
+        case COMMENT_OP_UPDATE:
+            StrDeinit(&op->update.old_content);
+            StrDeinit(&op->update.new_content);
+            break;
+    }
+}
+
+typedef Vec(CommentOperation) CommentOperations;
+
+static inline CommentOperation CommentOperationInitCreate(Str* content, u64 start_line, u64 end_line) {
+    CommentOperation op = {0};
+    op.type = COMMENT_OP_CREATE;
+    op.create.content = StrDup(content);
+    op.create.start_line = start_line;
+    op.create.end_line = end_line;
+    return op;
+}
+
+static inline CommentOperation CommentOperationInitDelete(u64 comment_id, Str* content) {
+    CommentOperation op = {0};
+    op.type = COMMENT_OP_DELETE;
+    op.delete.comment_id = comment_id;
+    op.delete.content = StrDup(content);
+    return op;
+}
+
+static inline CommentOperation CommentOperationInitUpdate(u64 comment_id, Str* old_content, Str* new_content) {
+    CommentOperation op = {0};
+    op.type = COMMENT_OP_UPDATE;
+    op.update.comment_id = comment_id;
+    op.update.old_content = StrDup(old_content);
+    op.update.new_content = StrDup(new_content);
+    return op;
+}
+
+static inline bool executeCommentOperations(FunctionId function_id, CommentOperations* operations) {
+    bool all_success = true;
+    
+    VecForeachPtr(operations, op, {
+        switch (op->type) {
+            case COMMENT_OP_CREATE: {
+                if (AddAiDecompilationComment(
+                        GetConnection(),
+                        function_id,
+                        &op->create.content,
+                        op->create.start_line,
+                        op->create.end_line
+                    )) {
+                    r_cons_printf(
+                        "+ (%llu, %llu) %s\n",
+                        op->create.start_line,
+                        op->create.end_line,
+                        op->create.content.data
+                    );
+                } else {
+                    LOG_ERROR("Failed to create comment: %s", op->create.content.data);
+                    r_cons_printf("!+ (?, ?) %s\n", op->create.content.data);
+                    all_success = false;
+                }
+                break;
+            }
+            
+            case COMMENT_OP_DELETE: {
+                if (DeleteAiDecompilationComment(
+                        GetConnection(),
+                        function_id,
+                        op->delete.comment_id
+                    )) {
+                    r_cons_printf("- %s\n", op->delete.content.data);
+                } else {
+                    LOG_ERROR("Failed to delete comment: %s", op->delete.content.data);
+                    r_cons_printf("!- %s\n", op->delete.content.data);
+                    all_success = false;
+                }
+                break;
+            }
+            
+            case COMMENT_OP_UPDATE: {
+                if (UpdateAiDecompilationComment(
+                        GetConnection(),
+                        function_id,
+                        op->update.comment_id,
+                        &op->update.new_content
+                    )) {
+                    r_cons_printf("~ %s\n", op->update.new_content.data);
+                } else {
+                    LOG_ERROR("Failed to update comment from '%s' to '%s'", 
+                             op->update.old_content.data, op->update.new_content.data);
+                    r_cons_printf(
+                        "!~ Failed to update comment.\n"
+                        "   OLD : %s\n"
+                        "   NEW : %s\n",
+                        op->update.old_content.data,
+                        op->update.new_content.data
+                    );
+                    all_success = false;
+                }
+                break;
+            }
+        }
+    });
+    
+    return all_success;
+}
+
+bool getCommentRange (
+    DiffLines* diff,
+    Strs*      original_dec,
+    u64        search_start,
+    u64*       out_start,
+    u64*       out_end
+) {
+    if (!diff || !original_dec || !out_start || !out_end) {
+        LOG_FATAL ("Invalid arguments");
+    }
+
+    LOG_INFO ("getCommentRange: search_start=%llu, diff->length=%zu", search_start, diff->length);
+
+    u64 s = search_start;
+    while (s < diff->length) {
+        DiffLine* dl = VecPtrAt (diff, s);
+        LOG_INFO ("getCommentRange: processing diff line %llu, type=%c", s, (char)dl->type);
+
+        // PHASE 1: skip all following comments
+        while (s < diff->length) {
+            dl = VecPtrAt (diff, s);
+            bool is_comment = false;
+            
+            switch (dl->type) {
+                case DIFF_TYPE_MOD : {
+                    is_comment = isUserComment (&dl->mod.new_content);
+                    break;
+                }
+                case DIFF_TYPE_MOV : {
+                    is_comment = isUserComment (&dl->mov.new_content);
+                    break;
+                }
+                case DIFF_TYPE_REM :
+                case DIFF_TYPE_ADD :
+                case DIFF_TYPE_SAM : {
+                    is_comment = isUserComment (&dl->sam.content);
+                    break;
+                }
+                default : {
+                    LOG_FATAL ("Unreachable code reached. Invalid diff line type");
+                }
+            }
+            
+            if (is_comment) {
+                s++;
+            } else {
+                break; // Found non-comment, exit comment-skipping phase
+            }
+        }
+
+        // PHASE 2: find modified code lines from decompilation output
+        // a continuous sequence of modified code lines defines our range
+        *out_start = (u64)-1;
+        *out_end   = (u64)-1;
+        LOG_INFO ("getCommentRange: starting range detection at diff line %llu", s);
+        
+        while (s < diff->length) {
+            dl = VecPtrAt (diff, s);
+            
+            switch (dl->type) {
+                case DIFF_TYPE_MOD : {
+                    u64 found_line = findLineInOriginalDecompilation(&dl->mod.old_content, original_dec);
+                    
+                    if (found_line > 0) {
+                        if (*out_start == (u64)-1) {
+                            *out_start = found_line;
+                        }
+                        *out_end = found_line;
+                        LOG_INFO (
+                            "getCommentRange: found MOD line at original line %llu, range now (%llu, %llu)",
+                            found_line, *out_start, *out_end
+                        );
+                    } else {
+                        LOG_ERROR("Could not find MOD line content in original decompilation: %s", dl->mod.old_content.data);
+                    }
+                    break;
+                }
+
+                case DIFF_TYPE_REM : {
+                    // Check if this REM is followed by an ADD (indicating a modification)
+                    if (dl->rem.content.length > 0 && !isUserComment (&dl->rem.content)) {
+                        // Look ahead to see if next line is an ADD
+                        if (s + 1 < diff->length) {
+                            DiffLine* next_dl = VecPtrAt (diff, s + 1);
+                            if (next_dl->type == DIFF_TYPE_ADD && 
+                                next_dl->add.content.length > 0 && 
+                                !isUserComment (&next_dl->add.content)) {
+                                // This is a REM-ADD pair representing a modification
+                                u64 found_line = findLineInOriginalDecompilation(&dl->rem.content, original_dec);
+                                
+                                if (found_line > 0) {
+                                    if (*out_start == (u64)-1) {
+                                        *out_start = found_line;
+                                    }
+                                    *out_end = found_line;
+                                    LOG_INFO (
+                                        "getCommentRange: found REM-ADD pair at original line %llu, range now (%llu, %llu)",
+                                        found_line, *out_start, *out_end
+                                    );
+                                } else {
+                                    LOG_ERROR("Could not find REM line content in original decompilation: %s", dl->rem.content.data);
+                                }
+                                s++; // Skip the next ADD since we've processed it
+                                break;
+                            }
+                        }
+                    }
+                    // If not part of REM-ADD pair, this marks end of range
+                    if (dl->rem.content.length == 0) {
+                        break; // Skip empty lines
+                    }
+                    LOG_INFO (
+                        "getCommentRange: hit standalone REM line (type=%c), returning %s",
+                        (char)dl->type,
+                        (*out_start != (u64)-1) ? "true" : "false"
+                    );
+                    return *out_start != (u64)-1;
+                }
+
+                case DIFF_TYPE_ADD : {
+                    // If this ADD is not part of a REM-ADD pair, it marks end of range
+                    if (dl->add.content.length == 0) {
+                        break; // Skip empty lines
+                    }
+                    LOG_INFO (
+                        "getCommentRange: hit standalone ADD line (type=%c), returning %s",
+                        (char)dl->type,
+                        (*out_start != (u64)-1) ? "true" : "false"
+                    );
+                    return *out_start != (u64)-1;
+                }
+
+                case DIFF_TYPE_MOV : {
+                    if (dl->mov.new_content.length == 0) {
+                        break; // Skip empty lines
+                    }
+                    LOG_INFO (
+                        "getCommentRange: hit MOV line (type=%c), returning %s",
+                        (char)dl->type,
+                        (*out_start != (u64)-1) ? "true" : "false"
+                    );
+                    return *out_start != (u64)-1;
+                }
+
+                case DIFF_TYPE_SAM : {
+                    if (dl->sam.content.length == 0) {
+                        break; // Skip empty lines
+                    }
+                    LOG_INFO (
+                        "getCommentRange: hit SAM line (type=%c), returning %s",
+                        (char)dl->type,
+                        (*out_start != (u64)-1) ? "true" : "false"
+                    );
+                    return *out_start != (u64)-1;
+                }
+
+                default : {
+                    LOG_FATAL ("Unreachable code reached. Invalid diff line type: %c", (char)dl->type);
+                }
+            }
+
+            s++;
+        }
+
+        // If we exit the while loop because we reached the end of diff,
+        // and we found some MOD/ADD lines, return the range
+        if (*out_start != (u64)-1) {
+            LOG_INFO (
+                "getCommentRange: reached end of diff, returning range (%llu, %llu)",
+                *out_start,
+                *out_end
+            );
+            return true;
+        }
+        
+        break; // Exit outer loop if no range found
+    }
+
+    LOG_INFO ("getCommentRange: reached end of function, returning false");
+    return false;
+}
+
+R_IPI RCmdStatus
+    updateDecompilerComments (RCore* core, const char* function_name, bool for_ai_comments) {
+    FunctionId function_id = rLookupFunctionIdForFunctionWithName (core, function_name);
+    if (!function_id) {
+        DISPLAY_ERROR ("Failed to get a function ID for function with given name.");
+        return R_CMD_STATUS_WRONG_ARGS;
+    }
+
+    if (!for_ai_comments) {
+        LOG_ERROR ("Only AI Decompilation supported for now!");
+        return R_CMD_STATUS_OK;
+    }
+
+    Comments        comments  = VecInit();
+    AiDecompilation ai_decomp = {0};
+    Str             code      = getAiDecompilation (function_id, false, &ai_decomp, &comments);
+
+    const char* tmpfilepath = r_file_temp (NULL);
+    FILE*       f           = fopen (tmpfilepath, "w");
+    fputs (code.data, f);
+    fclose (f);
+
+    LOG_INFO ("written decompilation contents to temp file path = %s", tmpfilepath);
+
+    int launch_result = launchEditorAndWait (ConfigGet (GetConfig(), "editor"), tmpfilepath);
+    if (launch_result != 0) {
+        DISPLAY_ERROR (
+            "Editor process failed with code %d. Failed to provide access to decompiled code.",
+            launch_result
+        );
+        return R_CMD_STATUS_OK;
+    }
+
+    // Read the modified content
+    FILE* fp = fopen (tmpfilepath, "r");
+    if (!fp) {
+        Str errstr = StrInit();
+        SysStrError (errno, &errstr);
+        LOG_ERROR ("Failed to open file temporary file : %s", errstr.data);
+        StrDeinit (&errstr);
+        return R_CMD_STATUS_OK;
+    }
+
+    fseek (fp, 0, SEEK_END);
+    u64 new_code_length = ftell (fp);
+    rewind (fp);
+
+    Str new_code = StrInit();
+    StrReserve (&new_code, new_code_length);
+    fread (new_code.data, 1, new_code_length, fp);
+    new_code.data[new_code_length] = '\0';
+    new_code.length                = new_code_length;
+    fclose (fp);
+
+    // get lines from original decompilation string
+    // without comments, without summary, just vanilla decompilation
+    Strs original_decomp = StrSplit (&ai_decomp.decompilation, "\n");
+
+    // Initialize operations collection
+    CommentOperations operations = VecInitWithDeepCopy(NULL, CommentOperationDeinit);
+    bool validation_passed = true;
+
+    DiffLines diff = GetDiff (&code, &new_code);
+    VecForeachPtrIdx (&diff, d, diff_line_idx, {
+        switch (d->type) {
+            case DIFF_TYPE_SAM : {
+                if (!d->sam.content.length) {
+                    break;
+                }
+                if (isUserComment (&d->sam.content)) {
+                    r_cons_printf ("= %s\n", d->sam.content.data);
+                }
+                break;
+            }
+
+            case DIFF_TYPE_REM : {
+                if (!d->rem.content.length) {
+                    break;
+                }
+                if (isUserComment (&d->rem.content)) {
+                    Comment* comment = findComment (&d->rem.content, &comments);
+                    if (comment) {
+                        CommentOperation op = CommentOperationInitDelete(comment->id, &comment->content);
+                        VecPushBack(&operations, op);
+                    } else {
+                        LOG_ERROR (
+                            "Non-existent comment deleted. This might indicate bug in program! : "
+                            "%s",
+                            d->rem.content.data
+                        );
+                        DISPLAY_ERROR (
+                            "Internal error! Please check plugin logs. Contact developers."
+                        );
+                        validation_passed = false;
+                        break;
+                    }
+                } else {
+                    DISPLAY_ERROR (
+                        "Diff shows deletion of a non-comment line! "
+                        "Please make changes to comments only!\n"
+                        "Deleted line : %s",
+                        d->rem.content.data
+                    );
+                    validation_passed = false;
+                }
+                break;
+            }
+
+            case DIFF_TYPE_ADD : {
+                if (!d->add.content.length) {
+                    break;
+                }
+                if (isUserComment (&d->add.content)) {
+                    Str comment_content = extractCommentString (&d->add.content);
+
+                    u64 start_line = 0;
+                    u64 end_line   = 0;
+
+                    if (getCommentRange (
+                            &diff,
+                            &original_decomp,
+                            diff_line_idx,
+                            &start_line,
+                            &end_line
+                        )) {
+                        CommentOperation op = CommentOperationInitCreate(&comment_content, start_line, end_line);
+                        VecPushBack(&operations, op);
+                    } else {
+                        DISPLAY_ERROR (
+                            "Failed to get comment region for a comment.\n"
+                            "Did you forget to indent code to specify comment region?"
+                        );
+                        validation_passed = false;
+                    }
+
+                    StrDeinit (&comment_content);
+                } else {
+                    // Check if this is just structural code (like braces, empty lines)
+                    Str trimmed = StrStrip (&d->add.content, NULL);
+                    if (trimmed.length == 0 || 
+                        (trimmed.length == 1 && (trimmed.data[0] == '{' || trimmed.data[0] == '}'))) {
+                        // Ignore structural additions like braces or empty lines
+                        LOG_INFO ("Ignoring structural addition: '%s'", d->add.content.data);
+                        StrDeinit (&trimmed);
+                    } else {
+                        DISPLAY_ERROR (
+                            "Diff shows addition of a non-comment line! "
+                            "Please make changes to comments only!\n"
+                            "All user-comments must begin with prefix //>\n"
+                            "Added line : %s",
+                            d->add.content.data
+                        );
+                        validation_passed = false;
+                        StrDeinit (&trimmed);
+                    }
+                }
+                break;
+            }
+
+            case DIFF_TYPE_MOD : {
+                if (isUserComment (&d->mod.new_content) && isUserComment (&d->mod.old_content)) {
+                    // get exact old comment string, skipping whitespaces
+                    // this will also help us find comment id for comment to be updated
+                    Str old_comment_content = extractCommentString (&d->mod.old_content);
+
+                    // find old comment, if non-existent then there's a bug in diff
+                    Comment* old_comment = findComment (&old_comment_content, &comments);
+                    if (!old_comment) {
+                        LOG_ERROR (
+                            "Non-existent comment updated. This might indicate bug in program!"
+                        );
+                        DISPLAY_ERROR (
+                            "Internal error. Please check plugin logs. Contact developers."
+                        );
+                        validation_passed = false;
+                        StrDeinit (&old_comment_content);
+                        break;
+                    }
+
+                    // get exact new comment, skipping whitespaces
+                    Str new_comment_content = extractCommentString (&d->mod.new_content);
+
+                    CommentOperation op = CommentOperationInitUpdate(old_comment->id, &old_comment_content, &new_comment_content);
+                    VecPushBack(&operations, op);
+
+                    StrDeinit (&new_comment_content);
+                    StrDeinit (&old_comment_content);
+                } else {
+                    Str old_trimmed = StrStrip (&d->mod.old_content, NULL);
+                    Str new_trimmed = StrStrip (&d->mod.new_content, NULL);
+                    if (StrCmp (&old_trimmed, &new_trimmed) != 0) {
+                        DISPLAY_ERROR (
+                            "Diff shows modification of/to a non-comment line! "
+                            "Please make changes to comments only!\n"
+                            "Non-comment lines should only be indented, not modified completely!\n"
+                            "Modified line : %s",
+                            d->mod.new_content.data
+                        );
+                        validation_passed = false;
+                    }
+                    StrDeinit (&old_trimmed);
+                    StrDeinit (&new_trimmed);
+                }
+                break;
+            }
+
+            case DIFF_TYPE_MOV : {
+                if (!d->mov.new_content.length && !d->mov.old_content.length) {
+                    break;
+                }
+                // NOTE: In case of mov, new_content and old_content are exactly same
+                // but are clones of each other, hence pointers are not same!
+                if (isUserComment (&d->mov.new_content)) {
+                    // remove old comment
+                    Comment* old_comment = findComment (&d->mov.old_content, &comments);
+                    if (old_comment) {
+                        // Create delete operation
+                        CommentOperation delete_op = CommentOperationInitDelete(old_comment->id, &old_comment->content);
+                        VecPushBack(&operations, delete_op);
+
+                        // add new comment with new range
+                        u64 start_line = 0;
+                        u64 end_line   = 0;
+                        if (getCommentRange (
+                                &diff,
+                                &original_decomp,
+                                diff_line_idx,
+                                &start_line,
+                                &end_line
+                            )) {
+                            CommentOperation create_op = CommentOperationInitCreate(&old_comment->content, start_line, end_line);
+                            VecPushBack(&operations, create_op);
+                        } else {
+                            DISPLAY_ERROR (
+                                "Failed to get comment region for a moved comment.\n"
+                                "Did you forget to indent code to specify comment region?"
+                            );
+                            validation_passed = false;
+                        }
+                    } else {
+                        DISPLAY_ERROR (
+                            "Diff shows movement of a non-existent comment!\n\t%s\n",
+                            d->mov.old_content.data
+                        );
+                        validation_passed = false;
+                    }
+                }
+                break;
+            }
+
+            default : {
+                LOG_FATAL ("Unreachable code reached : invalid diff line type");
+            }
+        }
+        
+        // Break out of diff processing if validation failed
+        if (!validation_passed) {
+            break;
+        }
+    });
+
+    // Execute operations only if validation passed
+    if (validation_passed) {
+        LOG_INFO("Validation passed. Executing %zu comment operations.", operations.length);
+        bool execution_success = executeCommentOperations(function_id, &operations);
+        if (!execution_success) {
+            DISPLAY_ERROR("Some comment operations failed during execution. Check logs for details.");
+        }
+    } else {
+        DISPLAY_ERROR("Validation failed. No comment operations will be executed.");
+    }
+
+    // Clean up operations
+    VecDeinit(&operations);
+
+    // Clean up resources
+    VecDeinit (&comments);
+    AiDecompilationDeinit (&ai_decomp);
+    StrDeinit (&code);
+    StrDeinit (&new_code);
+    VecDeinit (&original_decomp);
+    VecDeinit (&diff);
+    FREE (tmpfilepath);
+
+    return R_CMD_STATUS_OK;
+}
+
+/**
+ * "REdac"
+ * */
+R_IPI RCmdStatus
+    r_update_ai_decompilation_comments_handler (RCore* core, int argc, const char** argv) {
+    const char* fn_name = NULL;
+    if (ZSTR_ARG (fn_name, 1)) {
+        return updateDecompilerComments (core, fn_name, true);
+    }
+    return R_CMD_STATUS_WRONG_ARGS;
+}
+
+/**
+ * "REdc"
+ * */
+R_IPI RCmdStatus
+    r_update_decompilation_comments_handler (RCore* core, int argc, const char** argv) {
+    const char* fn_name = NULL;
+    if (ZSTR_ARG (fn_name, 1)) {
+        return updateDecompilerComments (core, fn_name, false);
+    }
+    return R_CMD_STATUS_WRONG_ARGS;
 }
 
 /**

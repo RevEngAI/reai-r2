@@ -38,20 +38,7 @@ commands:
         entries:
           - text: REu /path/to/binary.exe
             comment: "Upload a binary file to RevEngAI servers"
-    
-  - name: REd
-    cname: ai_decompile
-    summary: Decompile function using RevEngAI's AI Decompiler
-    args:
-      - name: function_name
-        type: ARG_TYPE_STRING
-        optional: false
-    details:
-      - name: Examples
-        entries:
-          - text: REd main
-            comment: "Decompile the 'main' function"
-    
+        
   - name: REart
     cname: show_revengai_art
     summary: Show RevEng.AI ASCII art

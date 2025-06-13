@@ -1,0 +1,40 @@
+group: REd
+commands:
+  - name: REda
+    cname: ai_decompile
+    summary: Decompile function using RevEngAI's AI Decompiler
+    args:
+      - name: function_name
+        type: ARG_TYPE_STRING
+        optional: false
+    details:
+      - name: Examples
+        entries:
+          - text: REd main
+            comment: "Decompile the 'main' function"
+
+  # TODO: Normal decompilation endpoint command
+            
+  - name: REdc
+    cname: update_decompilation_comments
+    summary: Update existing decompilation (NON AI) comments for given function.
+    args:
+      - name: function_name
+        type: ARG_TYPE_STRING
+        optional: false
+    details:
+      - name: Examples
+        entries:
+          - text: REdc FUN_0008333d3
+
+  - name: REdac
+    cname: update_ai_decompilation_comments
+    summary: Update existing AI decompilation comments for given function.
+    args:
+      - name: function_name
+        type: ARG_TYPE_STRING
+        optional: false
+    details:
+      - name: Examples
+        entries:
+          - text: REdac mabye_compute_base64
