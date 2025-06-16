@@ -25,6 +25,8 @@
 /* plugin includes */
 #include <Plugin.h>
 #include <stdlib.h>
+#include "Radare/PluginVersion.h"
+#include "r_version.h"
 
 typedef struct Plugin {
     Config     config;
@@ -88,6 +90,8 @@ Plugin *getPlugin (bool reinit) {
         }
         p.connection.api_key = StrInitFromStr (api_key);
         p.connection.host    = StrInitFromStr (host);
+        p.connection.user_agent =
+            StrInitFromZstr ("reai_r2-" REAI_PLUGIN_VERSION " (r2-version = " R2_VERSION ")");
 
         // Get AI models, this way we also perform an implicit auth-check
         p.models = GetAiModelInfos (&p.connection);
