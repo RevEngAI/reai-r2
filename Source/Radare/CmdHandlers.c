@@ -24,6 +24,7 @@
 
 /* local includes */
 #include <Plugin.h>
+#include <Reai/Diff.h>
 
 // TODO: restrict to debug symbols only
 
@@ -1133,6 +1134,601 @@ R_IPI RCmdStatus r_get_recent_analyses_handler (RCore* core, int argc, const cha
 R_IPI RCmdStatus
     r_ann_auto_analyze_restrict_debug_handler (RCore* core, int argc, const char** argv) {
     return autoAnalyze (core, argc, argv, true);
+}
+
+int sep = 2;
+
+
+
+bool drawSourceDiff (RConsCanvas* c, int w, int h, DiffLines* diff) {
+    int x = sep / 2;
+    int y = sep / 2;
+    w     = w / 2 - sep;
+    h     = h - sep;
+
+    r_cons_canvas_box (c, x, y, w, h, Color_RESET);
+    r_cons_canvas_write_at (c, "SOURCE", x + 2, y + 1);
+
+    int line_y = y + 3;
+    int max_lines = h - 5;
+    int current_line = 0;
+    int content_width = w - 8;
+
+    if(content_width <= 0 || max_lines <= 0) {
+        return false;
+    }
+
+        VecForeachPtr (diff, diff_line, {
+        if (current_line >= max_lines) break;
+
+        Str line_str = StrInit();
+
+        switch (diff_line->type) {
+            case DIFF_TYPE_SAM: {
+                // Same lines - show normally
+                int content_len = MIN2(diff_line->sam.content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->sam.line + 1, content_len, diff_line->sam.content.data);
+                break;
+            }
+            case DIFF_TYPE_REM: {
+                // Removed lines
+                int content_len = MIN2(diff_line->rem.content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->rem.line + 1, content_len, diff_line->rem.content.data);
+                break;
+            }
+            case DIFF_TYPE_MOD: {
+                // Modified lines - show old content
+                int content_len = MIN2(diff_line->mod.old_content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->mod.old_line + 1, content_len, diff_line->mod.old_content.data);
+                break;
+            }
+            case DIFF_TYPE_MOV: {
+                // Moved lines
+                int content_len = MIN2(diff_line->mov.old_content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->mov.old_line + 1, content_len, diff_line->mov.old_content.data);
+                break;
+            }
+            case DIFF_TYPE_ADD: {
+                // Added lines - show empty space in source
+                StrPrintf(&line_str, "    ");
+                break;
+            }
+            default:
+                StrDeinit(&line_str);
+                continue;
+        }
+
+        r_cons_canvas_write_at (c, line_str.data, x + 1, line_y + current_line);
+        StrDeinit(&line_str);
+        current_line++;
+    });
+
+    return true;
+}
+
+bool drawTargetDiff (RConsCanvas* c, int w, int h, DiffLines* diff) {
+    int y = sep / 2;
+    int x = sep / 2;
+    x     = w / 2 + sep / 2;
+    w     = w / 2 - sep;
+    h     = h - sep;
+
+    r_cons_canvas_box (c, x, y, w, h, Color_RESET);
+    r_cons_canvas_write_at (c, "TARGET", x + 2, y + 1);
+
+    int line_y = y + 3;
+    int max_lines = h - 5;
+    int current_line = 0;
+    int content_width = w - 8;
+
+    if(content_width <= 0 || max_lines <= 0) {
+        return false;
+    }
+
+    VecForeachPtr (diff, diff_line, {
+        if (current_line >= max_lines) break;
+
+        Str line_str = StrInit();
+
+        switch (diff_line->type) {
+            case DIFF_TYPE_SAM: {
+                // Same lines - show normally
+                int content_len = MIN2(diff_line->sam.content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->sam.line + 1, content_len, diff_line->sam.content.data);
+                break;
+            }
+            case DIFF_TYPE_ADD: {
+                // Added lines
+                int content_len = MIN2(diff_line->add.content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->add.line + 1, content_len, diff_line->add.content.data);
+                break;
+            }
+            case DIFF_TYPE_MOD: {
+                // Modified lines - show new content
+                int content_len = MIN2(diff_line->mod.new_content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->mod.new_line + 1, content_len, diff_line->mod.new_content.data);
+                break;
+            }
+            case DIFF_TYPE_MOV: {
+                // Moved lines
+                int content_len = MIN2(diff_line->mov.new_content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->mov.new_line + 1, content_len, diff_line->mov.new_content.data);
+                break;
+            }
+            case DIFF_TYPE_REM: {
+                // Removed lines - show empty space in target
+                StrPrintf(&line_str, "    ");
+                break;
+            }
+            default:
+                StrDeinit(&line_str);
+                continue;
+        }
+
+        r_cons_canvas_write_at (c, line_str.data, x + 1, line_y + current_line);
+        StrDeinit(&line_str);
+        current_line++;
+    });
+    
+    return true;
+}
+
+RConsCanvas* drawDiff (RConsCanvas* c, DiffLines* diff) {
+    // get terminal size
+    int h, w = r_cons_get_size (&h);
+
+    // if canvas is not created then create
+    if (c == NULL) {
+        c = r_cons_canvas_new (w, h);
+    }
+
+    // resize canvas on windows resize
+    if (c->w != w || c->h != h) {
+        r_cons_canvas_resize (c, w, h);
+    }
+
+    // create canvas
+    r_cons_canvas_clear (c);
+    if(!drawSourceDiff (c, w, h, diff)) {
+        return NULL;
+    }
+    if(!drawTargetDiff (c, w, h, diff)) {
+        return NULL;
+    }
+    r_cons_canvas_print (c);
+    r_cons_flush();
+
+    return c;
+}
+
+// Structure to hold list items and their corresponding target strings
+typedef struct {
+    Str name;           // Display name in the list
+    Str target_content; // Corresponding target string for diff
+} DiffListItem;
+
+typedef Vec(DiffListItem) DiffListItems;
+
+bool drawInteractiveList (RConsCanvas* c, int w, int h, DiffListItems* items, int selected_idx) {
+    int x = sep / 2;
+    int y = sep / 2;
+    int list_width = w / 4 - sep;  // Take 1/4 of screen width for list
+    h = h - sep;
+
+    if (list_width <= 0 || h <= 0) {
+        return false;
+    }
+
+    r_cons_canvas_box (c, x, y, list_width, h, Color_RESET);
+    r_cons_canvas_write_at (c, "ASSEMBLY VARIATIONS", x + 2, y + 1);
+    
+    // Show selection counter
+    char selection_info[64];
+    snprintf(selection_info, sizeof(selection_info), "(%d/%d)", selected_idx + 1, (int)items->length);
+    r_cons_canvas_write_at (c, selection_info, x + list_width - strlen(selection_info) - 2, y + 1);
+
+    int line_y = y + 3;
+    int max_lines = h - 5;
+    int content_width = list_width - 4;
+
+    if(content_width <= 0 || max_lines <= 0) {
+        return false;
+    }
+
+    VecForeachIdx (items, item, idx, {
+        if ((int)idx >= max_lines) break;
+
+        Str line_str = StrInit();
+        
+        // Highlight selected item
+        if ((int)idx == selected_idx) {
+            StrPrintf(&line_str, "> %.*s", (int)MIN2(item.name.length, (u64)content_width - 2), item.name.data);
+        } else {
+            StrPrintf(&line_str, "  %.*s", (int)MIN2(item.name.length, (u64)content_width - 2), item.name.data);
+        }
+
+        r_cons_canvas_write_at (c, line_str.data, x + 1, line_y + (int)idx);
+        StrDeinit(&line_str);
+    });
+
+    return true;
+}
+
+bool drawInteractiveSourceDiff (RConsCanvas* c, int w, int h, DiffLines* diff) {
+    int x = w / 4 + sep / 2;  // Start after the list
+    int y = sep / 2;
+    int diff_width = (w * 3 / 4) / 2 - sep;  // Half of remaining space
+    h = h - sep;
+
+    if (diff_width <= 0 || h <= 0) {
+        return false;
+    }
+
+    r_cons_canvas_box (c, x, y, diff_width, h, Color_RESET);
+    r_cons_canvas_write_at (c, "SOURCE", x + 2, y + 1);
+
+    int line_y = y + 3;
+    int max_lines = h - 5;
+    int current_line = 0;
+    int content_width = diff_width - 8;
+
+    if(content_width <= 0 || max_lines <= 0) {
+        return false;
+    }
+
+    VecForeachPtr (diff, diff_line, {
+        if (current_line >= max_lines) break;
+
+        Str line_str = StrInit();
+
+        switch (diff_line->type) {
+            case DIFF_TYPE_SAM: {
+                int content_len = MIN2(diff_line->sam.content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->sam.line + 1, content_len, diff_line->sam.content.data);
+                break;
+            }
+            case DIFF_TYPE_REM: {
+                int content_len = MIN2(diff_line->rem.content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->rem.line + 1, content_len, diff_line->rem.content.data);
+                break;
+            }
+            case DIFF_TYPE_MOD: {
+                int content_len = MIN2(diff_line->mod.old_content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->mod.old_line + 1, content_len, diff_line->mod.old_content.data);
+                break;
+            }
+            case DIFF_TYPE_MOV: {
+                int content_len = MIN2(diff_line->mov.old_content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->mov.old_line + 1, content_len, diff_line->mov.old_content.data);
+                break;
+            }
+            case DIFF_TYPE_ADD: {
+                StrPrintf(&line_str, "    ");
+                break;
+            }
+            default:
+                StrDeinit(&line_str);
+                continue;
+        }
+
+        r_cons_canvas_write_at (c, line_str.data, x + 1, line_y + current_line);
+        StrDeinit(&line_str);
+        current_line++;
+    });
+
+    return true;
+}
+
+bool drawInteractiveTargetDiff (RConsCanvas* c, int w, int h, DiffLines* diff) {
+    int x = w / 4 + (w * 3 / 4) / 2 + sep / 2;  // Start at last quarter
+    int y = sep / 2;
+    int diff_width = (w * 3 / 4) / 2 - sep;
+    h = h - sep;
+
+    if (diff_width <= 0 || h <= 0) {
+        return false;
+    }
+
+    r_cons_canvas_box (c, x, y, diff_width, h, Color_RESET);
+    r_cons_canvas_write_at (c, "TARGET", x + 2, y + 1);
+
+    int line_y = y + 3;
+    int max_lines = h - 5;
+    int current_line = 0;
+    int content_width = diff_width - 8;
+
+    if(content_width <= 0 || max_lines <= 0) {
+        return false;
+    }
+
+    VecForeachPtr (diff, diff_line, {
+        if (current_line >= max_lines) break;
+
+        Str line_str = StrInit();
+
+        switch (diff_line->type) {
+            case DIFF_TYPE_SAM: {
+                int content_len = MIN2(diff_line->sam.content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->sam.line + 1, content_len, diff_line->sam.content.data);
+                break;
+            }
+            case DIFF_TYPE_ADD: {
+                int content_len = MIN2(diff_line->add.content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->add.line + 1, content_len, diff_line->add.content.data);
+                break;
+            }
+            case DIFF_TYPE_MOD: {
+                int content_len = MIN2(diff_line->mod.new_content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->mod.new_line + 1, content_len, diff_line->mod.new_content.data);
+                break;
+            }
+            case DIFF_TYPE_MOV: {
+                int content_len = MIN2(diff_line->mov.new_content.length, (u64)content_width);
+                StrPrintf(&line_str, "%3llu %.*s", diff_line->mov.new_line + 1, content_len, diff_line->mov.new_content.data);
+                break;
+            }
+            case DIFF_TYPE_REM: {
+                StrPrintf(&line_str, "    ");
+                break;
+            }
+            default:
+                StrDeinit(&line_str);
+                continue;
+        }
+
+        r_cons_canvas_write_at (c, line_str.data, x + 1, line_y + current_line);
+        StrDeinit(&line_str);
+        current_line++;
+    });
+    
+    return true;
+}
+
+RConsCanvas* drawInteractiveDiff (RConsCanvas* c, DiffListItems* items, int selected_idx, DiffLines* diff) {
+    // get terminal size
+    int h, w = r_cons_get_size (&h);
+
+    // if canvas is not created then create
+    if (c == NULL) {
+        c = r_cons_canvas_new (w, h);
+    }
+
+    // resize canvas on windows resize
+    if (c->w != w || c->h != h) {
+        r_cons_canvas_resize (c, w, h);
+    }
+
+    // create canvas
+    r_cons_canvas_clear (c);
+    
+    if(!drawInteractiveList (c, w, h, items, selected_idx)) {
+        return NULL;
+    }
+    if(!drawInteractiveSourceDiff (c, w, h, diff)) {
+        return NULL;
+    }
+    if(!drawInteractiveTargetDiff (c, w, h, diff)) {
+        return NULL;
+    }
+    
+    r_cons_canvas_print (c);
+    r_cons_flush();
+
+    return c;
+}
+
+void DiffListItemDeinit(DiffListItem* item) {
+    StrDeinit(&item->name);
+    StrDeinit(&item->target_content);
+}
+
+R_IPI RCmdStatus r_function_assembly_diff_handler (RCore* core, int argc, const char** argv) {
+    (void)core;  // Suppress unused parameter warning
+    (void)argc;  // Suppress unused parameter warning  
+    (void)argv;  // Suppress unused parameter warning
+    
+    // Create source string - this stays constant
+    Str src = StrInitFromZstr("push ebp\nmov ebp, esp\nsub esp, 16\nmov dword [ebp-4], edi\nmov dword [ebp-8], esi\ncall printf\nadd esp, 16\npop ebp\nret");
+    
+    // Create list of diff options with corresponding target strings
+    DiffListItems items = VecInit();
+    
+    // Option 1: Function optimization
+    DiffListItem item1 = {0};
+    item1.name = StrInitFromZstr("Optimized Version");
+    item1.target_content = StrInitFromZstr("push ebp\nmov ebp, esp\nsub esp, 8\nmov dword [ebp-4], edi\ncall printf\nadd esp, 8\npop ebp\nret");
+    VecPushBack(&items, item1);
+    
+    // Option 2: Different calling convention
+    DiffListItem item2 = {0};
+    item2.name = StrInitFromZstr("Different Calling Convention");
+    item2.target_content = StrInitFromZstr("push ebp\nmov ebp, esp\npush edi\npush esi\ncall printf\npop esi\npop edi\npop ebp\nret");
+    VecPushBack(&items, item2);
+    
+    // Option 3: Debug version with extra checks
+    DiffListItem item3 = {0};
+    item3.name = StrInitFromZstr("Debug Version");
+    item3.target_content = StrInitFromZstr("push ebp\nmov ebp, esp\nsub esp, 16\ntest edi, edi\njz error_exit\nmov dword [ebp-4], edi\nmov dword [ebp-8], esi\ncall printf\nadd esp, 16\npop ebp\nret\nerror_exit:\nmov eax, -1\npop ebp\nret");
+    VecPushBack(&items, item3);
+    
+    // Option 4: Inlined version
+    DiffListItem item4 = {0};
+    item4.name = StrInitFromZstr("Inlined Printf");
+    item4.target_content = StrInitFromZstr("push ebp\nmov ebp, esp\nsub esp, 16\nmov dword [ebp-4], edi\nmov dword [ebp-8], esi\npush esi\npush edi\npush format_str\ncall _write\nadd esp, 12\nadd esp, 16\npop ebp\nret");
+    VecPushBack(&items, item4);
+    
+    // Option 5: Completely different function
+    DiffListItem item5 = {0};
+    item5.name = StrInitFromZstr("Scanner Function");
+    item5.target_content = StrInitFromZstr("push ebp\nmov ebp, esp\nsub esp, 4\ncall scanf\ntest eax, eax\njz scan_error\nmov eax, dword [ebp-4]\nadd esp, 4\npop ebp\nret\nscan_error:\nmov eax, 0\nadd esp, 4\npop ebp\nret");
+    VecPushBack(&items, item5);
+    
+    // Option 6: ARM assembly equivalent 
+    DiffListItem item6 = {0};
+    item6.name = StrInitFromZstr("ARM Assembly");
+    item6.target_content = StrInitFromZstr("push {fp, lr}\nadd fp, sp, #4\nsub sp, sp, #8\nstr r0, [fp, #-8]\nstr r1, [fp, #-12]\nbl printf\nsub sp, fp, #4\npop {fp, pc}");
+    VecPushBack(&items, item6);
+    
+    // Option 7: RISC-V assembly
+    DiffListItem item7 = {0};
+    item7.name = StrInitFromZstr("RISC-V Assembly");
+    item7.target_content = StrInitFromZstr("addi sp, sp, -16\nsd ra, 8(sp)\nsd s0, 0(sp)\naddi s0, sp, 16\nmv a0, a0\ncall printf\nld ra, 8(sp)\nld s0, 0(sp)\naddi sp, sp, 16\nret");
+    VecPushBack(&items, item7);
+    
+    // Option 8: Minimal version
+    DiffListItem item8 = {0};
+    item8.name = StrInitFromZstr("Minimal Version");
+    item8.target_content = StrInitFromZstr("call printf\nret");
+    VecPushBack(&items, item8);
+    
+    int selected_idx = 0;  // Start with first item selected
+    
+    // Generate initial diff
+    DiffListItem* current_item = VecPtrAt(&items, selected_idx);
+    DiffLines diff = GetDiff(&src, &current_item->target_content);
+    
+    RConsCanvas* c = drawInteractiveDiff(NULL, &items, selected_idx, &diff);
+    
+    // Lazy help canvas - created once, reused multiple times
+    static RConsCanvas* help_canvas = NULL;
+    
+    // Interactive loop
+    r_cons_println("Interactive Assembly Diff Viewer");
+    r_cons_println("Controls: k = Up, j = Down, q = Quit");
+    r_cons_println("Use k/j keys to navigate the list and see different assembly variations");
+    r_cons_flush();
+    r_sys_sleep(2); // Show instructions for 2 seconds
+    
+    int ch = 0;  // Start with no input
+    while (true) {
+        // Only process and re-render when we have actual input
+        if (ch != 0) {
+            bool need_redraw = false;
+            bool need_new_diff = false;
+            
+            switch (ch) {
+                case 'q':
+                case 'Q':
+                case 27:   // ESC key
+                    goto cleanup;
+                    
+                case 'k':  // Up
+                    if (selected_idx > 0) {
+                        selected_idx--;
+                        need_redraw = true;
+                        need_new_diff = true;
+                    }
+                    break;
+                    
+                case 'j':  // Down
+                    if (selected_idx < (int)items.length - 1) {
+                        selected_idx++;
+                        need_redraw = true;
+                        need_new_diff = true;
+                    }
+                    break;
+                    
+                case 'h':  // Help
+                case '?':
+                    {
+                        // Get current terminal size
+                        int help_h, help_w = r_cons_get_size(&help_h);
+                        
+                        // Lazy initialization - create help canvas only once
+                        if (!help_canvas) {
+                            help_canvas = r_cons_canvas_new(help_w, help_h);
+                            
+                            // Calculate center position for help box
+                            int box_width = 60;
+                            int box_height = 16;
+                            int box_x = (help_w - box_width) / 2;
+                            int box_y = (help_h - box_height) / 2;
+                            
+                            r_cons_canvas_clear(help_canvas);
+                            
+                            // Draw the help box (only once)
+                            r_cons_canvas_box(help_canvas, box_x, box_y, box_width, box_height, Color_RESET);
+                            
+                            // Write help content (only once)
+                            r_cons_canvas_write_at(help_canvas, "Interactive Assembly Diff Viewer - Help", box_x + 2, box_y + 1);
+                            r_cons_canvas_write_at(help_canvas, "========================================", box_x + 2, box_y + 2);
+                            
+                            r_cons_canvas_write_at(help_canvas, "Navigation Controls:", box_x + 2, box_y + 4);
+                            r_cons_canvas_write_at(help_canvas, "  k       : Move selection up", box_x + 4, box_y + 5);
+                            r_cons_canvas_write_at(help_canvas, "  j       : Move selection down", box_x + 4, box_y + 6);
+                            r_cons_canvas_write_at(help_canvas, "  q / ESC : Quit viewer", box_x + 4, box_y + 7);
+                            r_cons_canvas_write_at(help_canvas, "  h / ?   : Show this help", box_x + 4, box_y + 8);
+                            
+                            r_cons_canvas_write_at(help_canvas, "Usage:", box_x + 2, box_y + 10);
+                            r_cons_canvas_write_at(help_canvas, "• Left panel shows assembly variations", box_x + 4, box_y + 11);
+                            r_cons_canvas_write_at(help_canvas, "• Right panels show source vs target diff", box_x + 4, box_y + 12);
+                            r_cons_canvas_write_at(help_canvas, "• Use k/j to navigate and compare", box_x + 4, box_y + 13);
+                            
+                            r_cons_canvas_write_at(help_canvas, "Press any key to continue...", box_x + (box_width - 28) / 2, box_y + box_height - 2);
+                        } else {
+                            // Handle window resize - recreate canvas if size changed
+                            if (help_canvas->w != help_w || help_canvas->h != help_h) {
+                                r_cons_canvas_resize(help_canvas, help_w, help_h);
+                                // Note: Content remains the same, just canvas size adjusted
+                            }
+                        }
+                        
+                        r_cons_canvas_print(help_canvas);
+                        r_cons_flush();
+                        r_cons_readchar();
+                        need_redraw = true;
+                    }
+                    break;
+                    
+                default:
+                    // Ignore unknown keys - no action needed
+                    break;
+            }
+            
+            if (need_new_diff) {
+                // Clean up old diff
+                VecDeinit(&diff);
+                
+                // Generate new diff with selected item
+                current_item = VecPtrAt(&items, selected_idx);
+                diff = GetDiff(&src, &current_item->target_content);
+            }
+            
+            if (need_redraw) {
+                if(!drawInteractiveDiff(c, &items, selected_idx, &diff)) {
+                    r_cons_canvas_free(c);
+                    c = NULL;
+                    break;
+                }
+            }
+        }
+        
+        // Wait for actual user input (blocking)
+        ch = r_cons_readchar();
+    }
+    
+cleanup:
+    // Cleanup
+    if(c) {
+        r_cons_canvas_free(c);
+    }
+    
+    // Lazy cleanup - free help canvas only at exit
+    if(help_canvas) {
+        r_cons_canvas_free(help_canvas);
+        help_canvas = NULL;
+    }
+    
+    VecDeinit(&diff);
+    StrDeinit(&src);
+    
+    // Clean up list items
+    VecForeachPtr(&items, item, {
+        DiffListItemDeinit(item);
+    });
+    VecDeinit(&items);
+    
+    return R_CMD_STATUS_OK;
 }
 
 /**

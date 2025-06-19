@@ -59,10 +59,24 @@ def process_command_group(
         group_commands = data.get('commands', [])
 
         # Store in command_groups dictionary
-        command_groups[group_name] = {
-            'summary': group_summary,
-            'commands': group_commands
-        }
+        if group_name in command_groups:
+            # Merge with existing group
+            existing_group = command_groups[group_name]
+            
+            # Use the new summary if it's more descriptive, otherwise keep existing
+            if group_summary and len(group_summary) > len(existing_group.get('summary', '')):
+                existing_group['summary'] = group_summary
+            
+            # Merge commands (extend the existing commands list)
+            existing_commands = existing_group.get('commands', [])
+            existing_commands.extend(group_commands)
+            existing_group['commands'] = existing_commands
+        else:
+            # Create new group
+            command_groups[group_name] = {
+                'summary': group_summary,
+                'commands': group_commands
+            }
 
         # Recursively process each command in the group
         for cmd in group_commands:
@@ -123,7 +137,7 @@ def load_commands() -> Tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any
         process_command_group(data, simple_commands, command_groups)
 
     # Detect nested groups and dual-role commands
-    all_command_names = [cmd['name'] for cmd in simple_commands]
+    all_command_names = [cmd.get('name') for cmd in simple_commands if cmd.get('name')]
 
     for group_name, group_data in command_groups.items():
         group_cmds = group_data.get('commands', [])
@@ -283,8 +297,9 @@ void print_root_help(void) {
     r_cons_println("=======================================");""")
 
     for group_name in command_groups:
-        group_summary = f"Commands for {group_name} operations"
         group_info = command_groups[group_name]
+        # Use the group's own summary first, then fall back to generic description
+        group_summary = group_info.get('summary', f"Commands for {group_name} operations")
 
         # Try to extract a summary from an individual command (if present)
         for cmd in group_info.get("commands", []):
@@ -329,9 +344,14 @@ void print_root_help(void) {
 void print_{cname}_help(void) {{
     r_cons_println("{usage_line}");"""
 
-        # Examples
+        # Notes and Examples
         for detail in cmd.get('details', []):
-            if detail.get('name') == 'Examples':
+            if detail.get('name') == 'Notes':
+                help_impl += '\n    r_cons_println("\\nNotes:");'
+                for entry in detail.get('entries', []):
+                    text = entry.get('text', '').replace('"', '\\"')
+                    help_impl += f'\n    r_cons_println("  {text}");'
+            elif detail.get('name') == 'Examples':
                 help_impl += '\n    r_cons_println("\\nExamples:");'
                 for entry in detail.get('entries', []):
                     text = entry.get('text', '').replace('"', '\\"')
@@ -559,7 +579,7 @@ def generate_global_dispatcher(
         }} else {{
             print_{camel_to_snake(group_name)}_dual_help();
         }}
-        free(argv_buf[0]);
+        free(cmd_copy);
         return R_CMD_STATUS_OK;
     }}""")
 
@@ -569,7 +589,7 @@ def generate_global_dispatcher(
             group_cname = camel_to_snake(group_name)
             help_routing.append(f"""    if (strcmp(base_cmd, "{group_name}") == 0) {{
         print_{group_cname}_group_help();
-        free(argv_buf[0]);
+        free(cmd_copy);
         return R_CMD_STATUS_OK;
     }}""")
 
@@ -581,7 +601,7 @@ def generate_global_dispatcher(
             continue
         help_routing.append(f"""    if (strcmp(base_cmd, "{cmd_name}") == 0) {{
         print_{cname}_help();
-        free(argv_buf[0]);
+        free(cmd_copy);
         return R_CMD_STATUS_OK;
     }}""")
 
@@ -599,7 +619,7 @@ def generate_global_dispatcher(
         processed.add(cmd_name)
         command_routing.append(f"""    if (strcmp(argv[0], "{cmd_name}") == 0) {{
         RCmdStatus status = r_{cname}_dispatcher(core, argc, argv);
-        free(argv_buf[0]);
+        free(cmd_copy);
         return status;
     }}""")
 
@@ -610,7 +630,7 @@ def generate_global_dispatcher(
         group_cname = camel_to_snake(group_name)
         command_routing.append(f"""    if (strcmp(argv[0], "{group_name}") == 0) {{
         RCmdStatus status = r_{group_cname}_dispatcher(core, argc, argv);
-        free(argv_buf[0]);
+        free(cmd_copy);
         return status;
     }}""")
 
@@ -657,9 +677,10 @@ def generate_source_file(simple_commands, command_groups, dual_role_commands):
 
 /**
  * Split a command string into argc/argv format
+ * Note: Caller must free the returned cmd_copy pointer
  */
-static int split_command_into_args(const char* command, char* argv_buf[], int max_args) {{
-    if (!command || !argv_buf || max_args < 1) {{
+static int split_command_into_args(const char* command, char* argv_buf[], int max_args, char** cmd_copy_out) {{
+    if (!command || !argv_buf || max_args < 1 || !cmd_copy_out) {{
         return 0;
     }}
 
@@ -668,6 +689,8 @@ static int split_command_into_args(const char* command, char* argv_buf[], int ma
     if (!cmd_copy) {{
         return 0;
     }}
+
+    *cmd_copy_out = cmd_copy;  // Return the allocated pointer for later freeing
 
     char* token = strtok(cmd_copy, " ");
     while (token && argc < max_args) {{
@@ -748,10 +771,12 @@ R_API RCmdStatus reai_global_command_dispatcher(RCore* core, const char* command
     }}
 
     char* argv_buf[MAX_ARGS] = {{0}};
-    int argc = split_command_into_args(command, argv_buf, MAX_ARGS);
+    char* cmd_copy = NULL;
+    int argc = split_command_into_args(command, argv_buf, MAX_ARGS, &cmd_copy);
 
     if (argc == 0) {{
         DISPLAY_ERROR("Empty command");
+        if (cmd_copy) free(cmd_copy);
         return R_CMD_STATUS_INVALID;
     }}
 
@@ -763,7 +788,7 @@ R_API RCmdStatus reai_global_command_dispatcher(RCore* core, const char* command
     // Check for root help
     if (strcmp(argv[0], "RE?") == 0) {{
         print_root_help();
-        free(argv_buf[0]);
+        free(cmd_copy);
         return R_CMD_STATUS_OK;
     }}
 
@@ -775,7 +800,7 @@ R_API RCmdStatus reai_global_command_dispatcher(RCore* core, const char* command
 
         // Fallback if command not found
         print_root_help();
-        free(argv_buf[0]);
+        free(cmd_copy);
         return R_CMD_STATUS_OK;
     }}
 
@@ -784,7 +809,7 @@ R_API RCmdStatus reai_global_command_dispatcher(RCore* core, const char* command
 
     // Unknown command
     RCmdStatus status = r_show_help_handler(core, argc, argv);
-    free(argv_buf[0]);
+    free(cmd_copy);
     return status;
 }}
 
