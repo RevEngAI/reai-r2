@@ -24,6 +24,7 @@
 
 /* local includes */
 #include <Plugin.h>
+#include <Reai/Diff.h>
 
 // TODO: restrict to debug symbols only
 
@@ -1133,6 +1134,1305 @@ R_IPI RCmdStatus r_get_recent_analyses_handler (RCore* core, int argc, const cha
 R_IPI RCmdStatus
     r_ann_auto_analyze_restrict_debug_handler (RCore* core, int argc, const char** argv) {
     return autoAnalyze (core, argc, argv, true);
+}
+
+int sep = 2;
+
+// Height reserved for help area at the bottom
+#define HELP_AREA_HEIGHT 3
+
+/**
+ * Wrap text to fit within specified width, returning wrapped lines
+ * @param text: Source text to wrap
+ * @param width: Maximum width per line
+ * @param max_lines: Maximum number of lines to generate
+ * @return: Strs containing wrapped lines (caller must deinit)
+ */
+Strs wrapText (const char* text, int width, int max_lines) {
+    Strs wrapped_lines = VecInit();
+
+    // Validate arguments
+    if (!text || width <= 0 || max_lines <= 0) {
+        LOG_FATAL ("Text wrapping failed: invalid text pointer or dimensions");
+    }
+
+    // Create a Str object from the input text and strip whitespace
+    Str input_str    = StrInitFromZstr (text);
+    Str stripped_str = StrStrip (&input_str, NULL);
+
+    int text_len = stripped_str.length;
+    int pos      = 0;
+
+    // Handle empty text - use space instead of empty string to avoid StrPrintf issues
+    if (text_len == 0) {
+        Str empty_line = StrInit();
+        StrPrintf (&empty_line, " ");
+        VecPushBack (&wrapped_lines, empty_line);
+        StrDeinit (&input_str);
+        StrDeinit (&stripped_str);
+        return wrapped_lines;
+    }
+
+    while (pos < text_len && (int)wrapped_lines.length < max_lines) {
+        int remaining = text_len - pos;
+        int line_len  = MIN2 (remaining, width);
+
+        // Validate line length
+        if (line_len <= 0) {
+            LOG_FATAL ("Text wrapping failed: calculated line length is invalid");
+        }
+
+        // If we're not at the end and would cut in middle of word, try to break at space
+        if (line_len < remaining && line_len > 0) {
+            int break_pos = line_len;
+            // Look backwards for a space to break on
+            while (break_pos > 0 && pos + break_pos < text_len &&
+                   stripped_str.data[pos + break_pos] != ' ' &&
+                   stripped_str.data[pos + break_pos] != '\t') {
+                break_pos--;
+            }
+            // If we found a good break point and it's not too close to start, use it
+            if (break_pos > width / 3) {
+                line_len = break_pos;
+            }
+        }
+
+        // Validate bounds
+        if (pos + line_len > text_len) {
+            LOG_FATAL ("Text wrapping failed: calculated position exceeds text boundaries");
+        }
+
+        // Push a new wrapped line with content
+        Str wrapped_line = StrInit();
+        StrPrintf (&wrapped_line, "%.*s", line_len, stripped_str.data + pos);
+        VecPushBack (&wrapped_lines, wrapped_line);
+
+        pos += line_len;
+        // Skip whitespace at start of next line
+        while (pos < text_len &&
+               (stripped_str.data[pos] == ' ' || stripped_str.data[pos] == '\t')) {
+            pos++;
+        }
+    }
+
+    // Clean up the temporary strings
+    StrDeinit (&input_str);
+    StrDeinit (&stripped_str);
+
+    return wrapped_lines;
+}
+
+// Structure to hold list items and their corresponding target strings
+typedef struct {
+    Str name;           // Display name in the list
+    Str target_content; // Corresponding target string for diff
+} DiffListItem;
+
+typedef Vec (DiffListItem) DiffListItems;
+
+bool drawInteractiveList (RConsCanvas* c, int w, int h, DiffListItems* items, int selected_idx) {
+    int x          = sep / 2;
+    int y          = sep / 2;
+    int list_width = (w * 2) / 8 - sep;          // Take 2/8 of screen width for list
+    h              = h - sep - HELP_AREA_HEIGHT; // Reserve space for help area at bottom
+
+    if (list_width <= 0 || h <= 0) {
+        return false;
+    }
+
+    // Calculate header text positions with boundary checks
+    const char* header_text = "SIMILAR FUNCTIONS";
+    int         header_len  = strlen (header_text);
+    int         header_x    = x + 2;
+
+    // Ensure header fits within box
+    if (header_x + header_len > x + list_width - 1) {
+        header_x   = x + 1;
+        header_len = MIN2 (header_len, list_width - 3);
+    }
+
+    // Write header text first (truncated if necessary)
+    r_cons_canvas_write_at (c, header_text, header_x, y + 1);
+
+    // Show selection counter with boundary check
+    char selection_info[64];
+    snprintf (
+        selection_info,
+        sizeof (selection_info),
+        "(%d/%d)",
+        selected_idx + 1,
+        (int)items->length
+    );
+    int counter_len = strlen (selection_info);
+    int counter_x   = x + list_width - counter_len - 2;
+
+    // Ensure counter doesn't overlap with header
+    if (counter_x <= header_x + header_len + 1) {
+        counter_x = header_x + header_len + 1;
+    }
+
+    // Ensure counter fits within box
+    if (counter_x + counter_len > x + list_width - 1) {
+        counter_x = x + list_width - counter_len - 1;
+    }
+
+    r_cons_canvas_write_at (c, selection_info, counter_x, y + 1);
+
+    int line_y        = y + 3;
+    int max_lines     = h - 5;
+    int content_width = list_width - 4;
+
+    if (content_width <= 0 || max_lines <= 0) {
+        return false;
+    }
+
+    int current_display_line = 0;
+    VecForeachIdx (items, item, idx, {
+        if (current_display_line >= max_lines)
+            break;
+
+        // Wrap the item name if it's too long
+        int wrap_width = content_width - 2; // Account for selection indicator
+
+        // Validate UI parameters
+        if (wrap_width <= 0 || !item.name.data) {
+            LOG_FATAL ("UI rendering failed: invalid display width or null item name");
+        }
+
+        Strs wrapped_lines =
+            wrapText (item.name.data, wrap_width, max_lines - current_display_line);
+
+        VecForeachIdx (&wrapped_lines, wrapped_line, i, {
+            if (current_display_line >= max_lines)
+                break;
+
+            Str line_str = StrInit();
+
+            // Validate wrapped content
+            if (!wrapped_line.data) {
+                LOG_FATAL ("UI rendering failed: wrapped line content is null");
+            }
+
+            // Check for empty content and use space instead to avoid StrPrintf issues
+            const char* line_content = wrapped_line.data;
+            if (wrapped_line.length == 0) {
+                line_content = " ";
+            }
+
+            // Show selection indicator only on first line of wrapped text
+            if ((int)idx == selected_idx && i == 0) {
+                StrPrintf (&line_str, "> %s", line_content);
+            } else if ((int)idx == selected_idx) {
+                StrPrintf (&line_str, "  %s", line_content); // Indent continuation
+            } else if (i == 0) {
+                StrPrintf (&line_str, "  %s", line_content);
+            } else {
+                StrPrintf (&line_str, "  %s", line_content); // Indent continuation
+            }
+
+            // Ensure the line doesn't exceed box boundaries
+            int line_len = line_str.length;
+            if (line_len > content_width) {
+                // Truncate the line to fit within box
+                line_str.data[content_width - 1] = '\0';
+                line_str.length                  = content_width - 1;
+            }
+
+            r_cons_canvas_write_at (c, line_str.data, x + 1, line_y + current_display_line);
+            StrDeinit (&line_str);
+            current_display_line++;
+        });
+
+        // Clean up wrapped lines
+        VecDeinit (&wrapped_lines);
+    });
+
+    // Draw the box after all text content is written
+    r_cons_canvas_box (c, x, y, list_width, h, Color_RESET);
+
+    return true;
+}
+
+bool drawInteractiveSourceDiff (
+    RConsCanvas* c,
+    int          w,
+    int          h,
+    DiffLines*   diff,
+    bool         show_line_numbers
+) {
+    int x          = (w * 2) / 8 + sep / 2;      // Start after the list panel (2/8)
+    int y          = sep / 2;
+    int diff_width = (w * 3) / 8 - sep;          // Take 3/8 of screen width for source diff
+    h              = h - sep - HELP_AREA_HEIGHT; // Reserve space for help area at bottom
+
+    if (diff_width <= 0 || h <= 0) {
+        return false;
+    }
+
+    // Write header text first with boundary check
+    const char* header_text = "SOURCE";
+    int         header_len  = strlen (header_text);
+    int         header_x    = x + 2;
+
+    // Ensure header fits within box
+    if (header_x + header_len > x + diff_width - 1) {
+        header_x = x + 1;
+    }
+
+    r_cons_canvas_write_at (c, header_text, header_x, y + 1);
+
+    int line_y        = y + 3;
+    int max_lines     = h - 5;
+    int current_line  = 0;
+    int content_width = diff_width - 8;
+
+    if (content_width <= 0 || max_lines <= 0) {
+        return false;
+    }
+
+    VecForeachPtr (diff, diff_line, {
+        if (current_line >= max_lines)
+            break;
+
+        const char* content_text = NULL;
+        u64         line_number  = 0;
+        bool        has_content  = true;
+
+        switch (diff_line->type) {
+            case DIFF_TYPE_SAM :
+                content_text = diff_line->sam.content.data;
+                line_number  = diff_line->sam.line + 1;
+                break;
+            case DIFF_TYPE_REM :
+                content_text = diff_line->rem.content.data;
+                line_number  = diff_line->rem.line + 1;
+                break;
+            case DIFF_TYPE_MOD :
+                content_text = diff_line->mod.old_content.data;
+                line_number  = diff_line->mod.old_line + 1;
+                break;
+            case DIFF_TYPE_MOV :
+                content_text = diff_line->mov.old_content.data;
+                line_number  = diff_line->mov.old_line + 1;
+                break;
+            case DIFF_TYPE_ADD :
+                has_content = false;
+                break;
+            default :
+                continue;
+        }
+
+        if (!has_content) {
+            // Empty line for ADD type - use space to avoid empty string issues
+            Str line_str = StrInit();
+            if (show_line_numbers) {
+                StrPrintf (&line_str, "    ");
+            } else {
+                StrPrintf (&line_str, " ");
+            }
+            r_cons_canvas_write_at (c, line_str.data, x + 1, line_y + current_line);
+            StrDeinit (&line_str);
+            current_line++;
+        } else {
+            // content_text should never be NULL here - indicates programming bug
+            if (!content_text) {
+                LOG_FATAL ("content_text is NULL in source diff rendering - programming bug");
+            }
+
+            // Wrap the content text
+            int wrap_width =
+                show_line_numbers ? content_width - 4 : content_width; // Account for line numbers
+
+            // Validate UI parameters
+            if (wrap_width <= 0) {
+                LOG_FATAL ("UI rendering failed: insufficient width for text wrapping");
+            }
+
+            Strs wrapped_lines = wrapText (content_text, wrap_width, max_lines - current_line);
+
+            VecForeachIdx (&wrapped_lines, wrapped_line, i, {
+                if (current_line >= max_lines)
+                    break;
+
+                Str line_str = StrInit();
+
+                // Validate wrapped content
+                if (!wrapped_line.data) {
+                    LOG_FATAL ("UI rendering failed: wrapped line content is null");
+                }
+
+                // Check for empty content and use space instead to avoid StrPrintf issues
+                const char* line_content = wrapped_line.data;
+                if (wrapped_line.length == 0) {
+                    line_content = " ";
+                }
+
+                if (show_line_numbers && i == 0) {
+                    // Show line number only on first wrapped line
+                    StrPrintf (
+                        &line_str,
+                        "%3llu %s",
+                        (unsigned long long)line_number,
+                        line_content
+                    );
+                } else if (show_line_numbers) {
+                    // Indent continuation lines
+                    StrPrintf (&line_str, "    %s", line_content);
+                } else {
+                    StrPrintf (&line_str, "%s", line_content);
+                }
+
+                // Ensure the line doesn't exceed box boundaries
+                int line_len = line_str.length;
+                if (line_len > content_width) {
+                    // Truncate the line to fit within box
+                    line_str.data[content_width - 1] = '\0';
+                    line_str.length                  = content_width - 1;
+                }
+
+                r_cons_canvas_write_at (c, line_str.data, x + 1, line_y + current_line);
+                StrDeinit (&line_str);
+                current_line++;
+            });
+
+            // Clean up wrapped lines
+            VecDeinit (&wrapped_lines);
+        }
+    });
+
+    // Draw the box after all text content is written
+    r_cons_canvas_box (c, x, y, diff_width, h, Color_RESET);
+
+    return true;
+}
+
+bool drawInteractiveTargetDiff (
+    RConsCanvas* c,
+    int          w,
+    int          h,
+    DiffLines*   diff,
+    bool         show_line_numbers
+) {
+    int x          = (w * 5) / 8 + sep / 2;      // Start after the source panel (2/8 + 3/8 = 5/8)
+    int y          = sep / 2;
+    int diff_width = (w * 3) / 8 - sep;          // Take 3/8 of screen width for target diff
+    h              = h - sep - HELP_AREA_HEIGHT; // Reserve space for help area at bottom
+
+    if (diff_width <= 0 || h <= 0) {
+        return false;
+    }
+
+    // Write header text first with boundary check
+    const char* header_text = "TARGET";
+    int         header_len  = strlen (header_text);
+    int         header_x    = x + 2;
+
+    // Ensure header fits within box
+    if (header_x + header_len > x + diff_width - 1) {
+        header_x = x + 1;
+    }
+
+    r_cons_canvas_write_at (c, header_text, header_x, y + 1);
+
+    int line_y        = y + 3;
+    int max_lines     = h - 5;
+    int current_line  = 0;
+    int content_width = diff_width - 8;
+
+    if (content_width <= 0 || max_lines <= 0) {
+        return false;
+    }
+
+    VecForeachPtr (diff, diff_line, {
+        if (current_line >= max_lines)
+            break;
+
+        const char* content_text = NULL;
+        u64         line_number  = 0;
+        bool        has_content  = true;
+
+        switch (diff_line->type) {
+            case DIFF_TYPE_SAM :
+                content_text = diff_line->sam.content.data;
+                line_number  = diff_line->sam.line + 1;
+                break;
+            case DIFF_TYPE_ADD :
+                content_text = diff_line->add.content.data;
+                line_number  = diff_line->add.line + 1;
+                break;
+            case DIFF_TYPE_MOD :
+                content_text = diff_line->mod.new_content.data;
+                line_number  = diff_line->mod.new_line + 1;
+                break;
+            case DIFF_TYPE_MOV :
+                content_text = diff_line->mov.new_content.data;
+                line_number  = diff_line->mov.new_line + 1;
+                break;
+            case DIFF_TYPE_REM :
+                has_content = false;
+                break;
+            default :
+                continue;
+        }
+
+        if (!has_content) {
+            // Empty line for REM type - use space to avoid empty string issues
+            Str line_str = StrInit();
+            if (show_line_numbers) {
+                StrPrintf (&line_str, "    ");
+            } else {
+                StrPrintf (&line_str, " ");
+            }
+            r_cons_canvas_write_at (c, line_str.data, x + 1, line_y + current_line);
+            StrDeinit (&line_str);
+            current_line++;
+        } else {
+            // content_text should never be NULL here - indicates programming bug
+            if (!content_text) {
+                LOG_FATAL ("content_text is NULL in target diff rendering - programming bug");
+            }
+
+            // Wrap the content text
+            int wrap_width =
+                show_line_numbers ? content_width - 4 : content_width; // Account for line numbers
+
+            // Validate UI parameters
+            if (wrap_width <= 0) {
+                LOG_FATAL ("UI rendering failed: insufficient width for text wrapping");
+            }
+
+            Strs wrapped_lines = wrapText (content_text, wrap_width, max_lines - current_line);
+
+            VecForeachIdx (&wrapped_lines, wrapped_line, i, {
+                if (current_line >= max_lines)
+                    break;
+
+                Str line_str = StrInit();
+
+                // Validate wrapped content
+                if (!wrapped_line.data) {
+                    LOG_FATAL ("UI rendering failed: wrapped line content is null");
+                }
+
+                // Check for empty content and use space instead to avoid StrPrintf issues
+                const char* line_content = wrapped_line.data;
+                if (wrapped_line.length == 0) {
+                    line_content = " ";
+                }
+
+                if (show_line_numbers && i == 0) {
+                    // Show line number only on first wrapped line
+                    StrPrintf (
+                        &line_str,
+                        "%3llu %s",
+                        (unsigned long long)line_number,
+                        line_content
+                    );
+                } else if (show_line_numbers) {
+                    // Indent continuation lines
+                    StrPrintf (&line_str, "    %s", line_content);
+                } else {
+                    StrPrintf (&line_str, "%s", line_content);
+                }
+
+                // Ensure the line doesn't exceed box boundaries
+                int line_len = line_str.length;
+                if (line_len > content_width) {
+                    // Truncate the line to fit within box
+                    line_str.data[content_width - 1] = '\0';
+                    line_str.length                  = content_width - 1;
+                }
+
+                r_cons_canvas_write_at (c, line_str.data, x + 1, line_y + current_line);
+                StrDeinit (&line_str);
+                current_line++;
+            });
+
+            // Clean up wrapped lines
+            VecDeinit (&wrapped_lines);
+        }
+    });
+
+    // Draw the box after all text content is written
+    r_cons_canvas_box (c, x, y, diff_width, h, Color_RESET);
+
+    return true;
+}
+
+bool drawHelpArea (RConsCanvas* c, int w, int h) {
+    int help_y = h - HELP_AREA_HEIGHT;
+
+    if (help_y < 0) {
+        return false;
+    }
+
+    // Draw help area background (full width)
+    for (int i = 0; i < HELP_AREA_HEIGHT; i++) {
+        for (int j = 0; j < w; j++) {
+            r_cons_canvas_write_at (c, " ", j, help_y + i);
+        }
+    }
+
+    // Write help text
+    r_cons_canvas_write_at (
+        c,
+        "k=Up j=Down q=Quit h=Help r=Rename (window re-renders on any key press)",
+        2,
+        help_y + 1
+    );
+
+    return true;
+}
+
+bool drawConfirmationDialog (RConsCanvas* c, int w, int h, const char* message) {
+    // First, wrap the message to determine the required box size
+    int max_msg_width = 70; // Maximum message width
+    int max_msg_lines = 10; // Maximum message lines
+
+    Strs wrapped_lines = wrapText (message, max_msg_width, max_msg_lines);
+
+    // Calculate required box dimensions based on wrapped content
+    int content_lines = wrapped_lines.length;
+    int box_width     = max_msg_width + 4; // Add padding
+    int box_height    = content_lines + 6; // Add padding for options and borders
+
+    // Ensure minimum size
+    box_width  = MAX2 (box_width, 40);
+    box_height = MAX2 (box_height, 8);
+
+    // Ensure box fits on screen
+    if (box_width > w - 4) {
+        box_width = w - 4;
+    }
+    if (box_height > h - 4) {
+        box_height = h - 4;
+    }
+
+    // Calculate center position for dialog box
+    int box_x = (w - box_width) / 2;
+    int box_y = (h - box_height) / 2;
+
+    // Draw semi-transparent overlay (just clear the area)
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            r_cons_canvas_write_at (c, " ", j, i);
+        }
+    }
+
+    // Draw the dialog box
+    r_cons_canvas_box (c, box_x, box_y, box_width, box_height, Color_RESET);
+
+    // Write the wrapped message
+    int msg_x = box_x + 2;
+    int msg_y = box_y + 2;
+
+    VecForeachIdx (&wrapped_lines, line, idx, {
+        if (idx < box_height - 4) { // Leave space for options
+            r_cons_canvas_write_at (c, line.data, msg_x, msg_y + idx);
+        }
+    });
+
+    // Write options at the bottom
+    int options_y = box_y + box_height - 3;
+    r_cons_canvas_write_at (c, "y = Yes, n = No", msg_x, options_y);
+
+    // Clean up wrapped lines
+    VecDeinit (&wrapped_lines);
+
+    return true;
+}
+
+bool drawRenameDialog (RConsCanvas* c, int w, int h, const char* initial_name, Str* target_name) {
+    // Calculate center position for dialog box
+    int box_width  = 70;
+    int box_height = 10;
+    int box_x      = (w - box_width) / 2;
+    int box_y      = (h - box_height) / 2;
+
+    // Initialize input buffer with initial name using Str
+    Str input_buffer    = StrInitFromZstr (initial_name);
+    int cursor_pos      = input_buffer.length;
+    int max_input_width = box_width - 4;
+
+    while (true) {
+        // Clear screen and redraw dialog
+        for (int i = 0; i < h; i++) {
+            for (int j = 0; j < w; j++) {
+                r_cons_canvas_write_at (c, " ", j, i);
+            }
+        }
+
+        // Draw the dialog box
+        r_cons_canvas_box (c, box_x, box_y, box_width, box_height, Color_RESET);
+
+        // Write the prompt
+        r_cons_canvas_write_at (c, "Enter new function name:", box_x + 2, box_y + 2);
+        r_cons_canvas_write_at (c, "Press Enter to confirm, ESC to cancel", box_x + 2, box_y + 6);
+
+        // Draw input field
+        int input_x = box_x + 2;
+        int input_y = box_y + 4;
+
+        // Clear input area
+        for (int i = 0; i < max_input_width; i++) {
+            r_cons_canvas_write_at (c, " ", input_x + i, input_y);
+        }
+
+        // Show current input with cursor
+        int input_len     = input_buffer.length;
+        int display_start = 0;
+
+        // If input is longer than display width, scroll to show cursor
+        if (cursor_pos >= max_input_width) {
+            display_start = cursor_pos - max_input_width + 1;
+        }
+
+        // Display the visible portion of input
+        int display_len = MIN2 (max_input_width, input_len - display_start);
+        if (display_len > 0) {
+            r_cons_canvas_write_at (c, input_buffer.data + display_start, input_x, input_y);
+        }
+
+        // Show cursor position
+        int cursor_display_x = input_x + (cursor_pos - display_start);
+        if (cursor_display_x >= input_x && cursor_display_x < input_x + max_input_width) {
+            // Use a simple cursor indicator - just show a blinking underscore or block
+            // Don't print the actual character to avoid duplication
+            r_cons_canvas_write_at (c, "I", cursor_display_x, input_y);
+        }
+
+        // Print and flush
+        r_cons_canvas_print (c);
+        r_cons_flush();
+
+        // Handle input
+        int ch = r_cons_readchar();
+
+        switch (ch) {
+            case 13 : // Enter key
+                // Copy result directly to target_name
+                StrClear (target_name);
+                StrAppendf (target_name, "%s", input_buffer.data);
+                StrDeinit (&input_buffer);
+                return true;
+
+            case 27 : // ESC key
+                StrDeinit (&input_buffer);
+                return false;
+
+            case 127 : // Backspace
+            case 8 :   // Backspace (alternative)
+                if (cursor_pos > 0) {
+                    // Remove character at cursor position using Str operations
+                    StrDelete (&input_buffer, cursor_pos - 1);
+                    cursor_pos--;
+                }
+                break;
+
+            case 21 : // Ctrl+U (clear line)
+                StrClear (&input_buffer);
+                cursor_pos = 0;
+                break;
+
+            case 1 : // Ctrl+A (beginning of line)
+                cursor_pos = 0;
+                break;
+
+            case 5 : // Ctrl+E (end of line)
+                cursor_pos = input_buffer.length;
+                break;
+
+            case 2 : // Ctrl+B (backward)
+                if (cursor_pos > 0) {
+                    cursor_pos--;
+                }
+                break;
+
+            case 6 : // Ctrl+F (forward)
+                if ((u64)cursor_pos < input_buffer.length) {
+                    cursor_pos++;
+                }
+                break;
+
+            default :
+                // Handle printable characters
+                if (ch >= 32 && ch <= 126) {
+                    // Insert character at cursor position
+                    if ((u64)cursor_pos == input_buffer.length) {
+                        // Append to end
+                        StrPushBack (&input_buffer, ch);
+                    } else {
+                        // Insert in middle
+                        StrInsertCharAt (&input_buffer, ch, cursor_pos);
+                    }
+                    cursor_pos++;
+                }
+                break;
+        }
+    }
+
+    StrDeinit (&input_buffer);
+    return false;
+}
+
+RConsCanvas* drawInteractiveDiff (
+    RConsCanvas*   c,
+    DiffListItems* items,
+    int            selected_idx,
+    DiffLines*     diff,
+    bool           show_line_numbers
+) {
+    // get terminal size
+    int h, w = r_cons_get_size (&h);
+
+    // if canvas is not created then create
+    if (c == NULL) {
+        c = r_cons_canvas_new (w, h);
+    }
+
+    // resize canvas on windows resize
+    if (c->w != w || c->h != h) {
+        r_cons_canvas_resize (c, w, h);
+    }
+
+    // create canvas
+    r_cons_canvas_clear (c);
+
+    if (!drawInteractiveList (c, w, h, items, selected_idx)) {
+        return NULL;
+    }
+    if (!drawInteractiveSourceDiff (c, w, h, diff, show_line_numbers)) {
+        return NULL;
+    }
+    if (!drawInteractiveTargetDiff (c, w, h, diff, show_line_numbers)) {
+        return NULL;
+    }
+
+    if (!drawHelpArea (c, w, h)) {
+        return NULL;
+    }
+
+    r_cons_canvas_print (c);
+    r_cons_flush();
+
+    return c;
+}
+
+void DiffListItemDeinit (DiffListItem* item) {
+    StrDeinit (&item->name);
+    StrDeinit (&item->target_content);
+}
+
+/**
+ * Get linear disassembly from function's control flow graph
+ *
+ * @param function_id : Function ID to get CFG for
+ * @return Str : Linear disassembly as a single string (caller must free)
+ */
+Str getFunctionLinearDisasm (FunctionId function_id) {
+    Str linear_disasm = StrInit();
+
+    // Get the control flow graph for this function
+    ControlFlowGraph cfg = GetFunctionControlFlowGraph (GetConnection(), function_id);
+
+    if (cfg.blocks.length == 0) {
+        LOG_ERROR ("No blocks found in control flow graph for function ID %llu", function_id);
+        ControlFlowGraphDeinit (&cfg);
+        return linear_disasm; // Return empty string
+    }
+
+    // Convert CFG blocks to linear disassembly
+    // Sort blocks by min_addr to maintain proper order
+    VecForeachPtr (&cfg.blocks, block, {
+        // Add block header comment if it exists
+        if (block->comment.length > 0) {
+            StrAppendf (
+                &linear_disasm,
+                "; Block %llu (0x%llx-0x%llx): %s\n",
+                block->id,
+                block->min_addr,
+                block->max_addr,
+                block->comment.data
+            );
+        } else {
+            StrAppendf (
+                &linear_disasm,
+                "; Block %llu (0x%llx-0x%llx)\n",
+                block->id,
+                block->min_addr,
+                block->max_addr
+            );
+        }
+
+        // Add all assembly lines from this block
+        VecForeachPtr (&block->asm_lines, asm_line, {
+            StrAppendf (&linear_disasm, "%s\n", asm_line->data);
+        });
+
+        // Add destination info if available
+        if (block->destinations.length > 0) {
+            StrAppendf (&linear_disasm, "; Destinations: ");
+            VecForeachIdx (&block->destinations, dest, idx, {
+                if (idx > 0) {
+                    StrAppendf (&linear_disasm, ", ");
+                }
+                StrAppendf (
+                    &linear_disasm,
+                    "Block_%llu(%s)",
+                    dest.destination_block_id,
+                    dest.flowtype.data
+                );
+            });
+            StrAppendf (&linear_disasm, "\n");
+        }
+
+        // Add separator between blocks
+        StrAppendf (&linear_disasm, "\n");
+    });
+
+    // Add overview comment if available
+    if (cfg.overview_comment.length > 0) {
+        Str header = StrInit();
+        StrPrintf (
+            &header,
+            "; Function Overview: %s\n\n%s",
+            cfg.overview_comment.data,
+            linear_disasm.data
+        );
+        StrDeinit (&linear_disasm);
+        linear_disasm = header;
+    }
+
+    // Clean up CFG
+    ControlFlowGraphDeinit (&cfg);
+
+    // Replace all tab characters with four spaces
+    StrReplaceZstr (&linear_disasm, "\t", "    ", -1);
+
+    return linear_disasm;
+}
+
+R_IPI RCmdStatus r_function_assembly_diff_handler (RCore* core, int argc, const char** argv) {
+    // Parse arguments: function_name and optional similarity_level
+    const char* function_name  = NULL;
+    u32         min_similarity = 90; // Default 90% similarity
+
+    if (!ZSTR_ARG (function_name, 1)) {
+        DISPLAY_ERROR ("Usage: REfd <function_name> [similarity_level]");
+        DISPLAY_ERROR ("Example: REfd main 85");
+        return R_CMD_STATUS_WRONG_ARGS;
+    }
+
+    // Optional similarity level argument
+    if (argc > 2) {
+        NUM_ARG (min_similarity, 2);
+        min_similarity = CLAMP (min_similarity, 50, 99); // Reasonable range for diffs
+    }
+
+    // Check if we can work with current analysis
+    if (!rCanWorkWithAnalysis (GetBinaryId(), true)) {
+        DISPLAY_ERROR (
+            "Current session has no completed analysis attached to it.\n"
+            "Please create a new analysis and wait for it's completion or\n"
+            "       apply an existing analysis that is already complete."
+        );
+        return R_CMD_STATUS_OK;
+    }
+
+    // Get function ID for the source function
+    FunctionId source_fn_id = rLookupFunctionIdForFunctionWithName (core, function_name);
+    if (!source_fn_id) {
+        DISPLAY_ERROR (
+            "A function with that name does not exist in current Rizin session.\n"
+            "Please provide a name from output of `afl` command."
+        );
+        return R_CMD_STATUS_WRONG_ARGS;
+    }
+
+    // Get linear disassembly for source function
+    Str src = getFunctionLinearDisasm (source_fn_id);
+    if (src.length == 0) {
+        DISPLAY_ERROR ("Failed to get disassembly for function '%s'", function_name);
+        StrDeinit (&src);
+        return R_CMD_STATUS_OK;
+    }
+
+    // Find similar functions
+    SimilarFunctionsRequest search        = SimilarFunctionsRequestInit();
+    search.function_id                    = source_fn_id;
+    search.limit                          = 10; // Get up to 10 similar functions for diff
+    search.distance                       = 1. - (min_similarity / 100.);
+    search.debug_include.user_symbols     = false;
+    search.debug_include.system_symbols   = false;
+    search.debug_include.external_symbols = false;
+
+    SimilarFunctions similar_functions = GetSimilarFunctions (GetConnection(), &search);
+
+    if (similar_functions.length == 0) {
+        DISPLAY_ERROR (
+            "No similar functions found for '%s' with %u%% similarity",
+            function_name,
+            min_similarity
+        );
+        StrDeinit (&src);
+        SimilarFunctionsRequestDeinit (&search);
+        return R_CMD_STATUS_OK;
+    }
+
+    r_cons_printf (
+        "Found %llu similar functions for '%s' (>= %u%% similarity)\n",
+        similar_functions.length,
+        function_name,
+        min_similarity
+    );
+
+    // Create list of similar functions with their disassembly
+    DiffListItems items = VecInit();
+
+    VecForeachPtr (&similar_functions, similar_fn, {
+        DiffListItem item = {0};
+
+        // Create display name with similarity percentage
+        item.name = StrInit();
+        StrPrintf (
+            &item.name,
+            "%s (%.1f%% - %s)",
+            similar_fn->name.data,
+            (1. - similar_fn->distance) * 100.,
+            similar_fn->binary_name.data
+        );
+
+        // Get linear disassembly for this similar function
+        item.target_content = getFunctionLinearDisasm (similar_fn->id);
+
+        // Only add if we successfully got disassembly
+        if (item.target_content.length > 0) {
+            VecPushBack (&items, item);
+        } else {
+            LOG_ERROR ("Failed to get disassembly for function ID %llu", similar_fn->id);
+            DiffListItemDeinit (&item);
+        }
+    });
+
+    // Check if we have any valid similar functions with disassembly
+    if (items.length == 0) {
+        DISPLAY_ERROR ("No similar functions with valid disassembly found for '%s'", function_name);
+        StrDeinit (&src);
+        VecDeinit (&similar_functions);
+        SimilarFunctionsRequestDeinit (&search);
+        VecDeinit (&items);
+        return R_CMD_STATUS_OK;
+    }
+
+    int selected_idx = 0; // Start with first item selected
+
+    // Generate initial diff
+    DiffListItem* current_item = VecPtrAt (&items, selected_idx);
+    DiffLines     diff         = GetDiff (&src, &current_item->target_content);
+
+    // Create initial canvas
+    RConsCanvas* c = drawInteractiveDiff (NULL, &items, selected_idx, &diff, false);
+    if (!c) {
+        DISPLAY_ERROR ("Failed to create interactive diff viewer");
+        VecDeinit (&diff);
+        StrDeinit (&src);
+        VecDeinit (&similar_functions);
+        SimilarFunctionsRequestDeinit (&search);
+        VecForeachPtr (&items, item, { DiffListItemDeinit (item); });
+        VecDeinit (&items);
+        return R_CMD_STATUS_OK;
+    }
+
+    // Lazy help canvas - created once, reused multiple times
+    static RConsCanvas* help_canvas = NULL;
+
+    int ch = 0; // Start with no input
+    while (true) {
+        // Only process and re-render when we have actual input
+        if (ch != 0) {
+            bool need_redraw   = false;
+            bool need_new_diff = false;
+
+            switch (ch) {
+                case 'q' :
+                case 'Q' :
+                case 27 :  // ESC key
+                    goto cleanup;
+
+                case 'k' : // Up
+                    if (selected_idx > 0) {
+                        selected_idx--;
+                        need_redraw   = true;
+                        need_new_diff = true;
+                    }
+                    break;
+
+                case 'j' : // Down
+                    if (selected_idx < (int)items.length - 1) {
+                        selected_idx++;
+                        need_redraw   = true;
+                        need_new_diff = true;
+                    }
+                    break;
+
+                case 'h' : // Help
+                case '?' : {
+                    // Get current terminal size
+                    int help_h, help_w = r_cons_get_size (&help_h);
+
+                    // Lazy initialization - create help canvas only once
+                    if (!help_canvas) {
+                        help_canvas = r_cons_canvas_new (help_w, help_h);
+
+                        // Calculate center position for help box
+                        int box_width  = 60;
+                        int box_height = 16;
+                        int box_x      = (help_w - box_width) / 2;
+                        int box_y      = (help_h - box_height) / 2;
+
+                        r_cons_canvas_clear (help_canvas);
+
+                        // Draw the help box (only once)
+                        r_cons_canvas_box (
+                            help_canvas,
+                            box_x,
+                            box_y,
+                            box_width,
+                            box_height,
+                            Color_RESET
+                        );
+
+                        // Write help content (only once)
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "Interactive Function Diff Viewer - Help",
+                            box_x + 2,
+                            box_y + 1
+                        );
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "========================================",
+                            box_x + 2,
+                            box_y + 2
+                        );
+
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "Navigation Controls:",
+                            box_x + 2,
+                            box_y + 4
+                        );
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "  k       : Move selection up",
+                            box_x + 4,
+                            box_y + 5
+                        );
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "  j       : Move selection down",
+                            box_x + 4,
+                            box_y + 6
+                        );
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "  r       : Rename source function",
+                            box_x + 4,
+                            box_y + 9
+                        );
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "  q / ESC : Quit viewer",
+                            box_x + 4,
+                            box_y + 7
+                        );
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "  h / ?   : Show this help",
+                            box_x + 4,
+                            box_y + 8
+                        );
+
+                        r_cons_canvas_write_at (help_canvas, "Usage:", box_x + 2, box_y + 11);
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "• Left panel shows similar functions",
+                            box_x + 4,
+                            box_y + 12
+                        );
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "• Right panels show function diff",
+                            box_x + 4,
+                            box_y + 13
+                        );
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "• Use k/j to compare similar functions",
+                            box_x + 4,
+                            box_y + 14
+                        );
+
+                        r_cons_canvas_write_at (
+                            help_canvas,
+                            "Press any key to continue...",
+                            box_x + (box_width - 28) / 2,
+                            box_y + box_height - 2
+                        );
+                    } else {
+                        // Handle window resize - recreate canvas if size changed
+                        if (help_canvas->w != help_w || help_canvas->h != help_h) {
+                            r_cons_canvas_resize (help_canvas, help_w, help_h);
+                            // Note: Content remains the same, just canvas size adjusted
+                        }
+                    }
+
+                    r_cons_canvas_print (help_canvas);
+                    r_cons_flush();
+                    r_cons_readchar();
+                    need_redraw = true;
+                } break;
+
+                case 'r' : // Rename
+                case 'R' : {
+                    // Get current terminal size
+                    int rename_h, rename_w = r_cons_get_size (&rename_h);
+
+                    // Get target function name (extract from display name)
+                    current_item    = VecPtrAt (&items, selected_idx);
+                    Str target_name = StrInit();
+
+                    // Parse the display name to extract target function name
+                    // Format: "target_name (XX.X% - binary_name)"
+                    const char* open_paren = strchr (current_item->name.data, '(');
+                    if (open_paren) {
+                        // Calculate length of target name (everything before the first space + parenthesis)
+                        int name_len = open_paren - current_item->name.data;
+                        // Remove trailing spaces
+                        while (name_len > 0 && current_item->name.data[name_len - 1] == ' ') {
+                            name_len--;
+                        }
+
+                        // Create target name using Str
+                        StrAppendf (&target_name, "%.*s", name_len, current_item->name.data);
+                    }
+
+                    if (target_name.length == 0) {
+                        StrAppendf (&target_name, "unknown_function");
+                    }
+
+                    // Show rename dialog first - pass pointer to target_name
+                    if (drawRenameDialog (c, rename_w, rename_h, target_name.data, &target_name)) {
+                        // User confirmed with Enter, now ask for final confirmation
+                        Str confirm_message = StrInit();
+                        StrPrintf (
+                            &confirm_message,
+                            "Are you sure you want to rename '%s' to '%s'?",
+                            function_name,
+                            target_name.data
+                        );
+
+                        drawConfirmationDialog (c, rename_w, rename_h, confirm_message.data);
+                        r_cons_canvas_print (c);
+                        r_cons_flush();
+
+                        // Wait for y/n response
+                        int confirm_ch = r_cons_readchar();
+                        if (confirm_ch == 'y' || confirm_ch == 'Y') {
+                            r_cons_printf (
+                                "Renaming function '%s' to '%s'...\n",
+                                function_name,
+                                target_name.data
+                            );
+
+                            // Perform the actual rename using the existing rename function
+                            Str old_name_str = StrInitFromZstr (function_name);
+
+                            if (RenameFunction (GetConnection(), source_fn_id, target_name)) {
+                                r_anal_function_rename (
+                                    r_anal_get_function_byname (core->anal, function_name),
+                                    target_name.data
+                                );
+                                r_cons_printf (
+                                    "Successfully renamed function '%s' to '%s'\n",
+                                    function_name,
+                                    target_name.data
+                                );
+                            } else {
+                                r_cons_printf (
+                                    "Failed to rename function '%s' to '%s'\n",
+                                    function_name,
+                                    target_name.data
+                                );
+                            }
+
+                            StrDeinit (&old_name_str);
+
+                            r_cons_flush();
+                            r_sys_sleep (2); // Show result for 2 seconds
+                        }
+                        // If user pressed 'n', do nothing (cancelled)
+
+                        StrDeinit (&confirm_message);
+                    }
+                    // If user pressed ESC in rename dialog, do nothing (cancelled)
+
+                    StrDeinit (&target_name);
+
+                    need_redraw = true;
+                } break;
+
+                default :
+                    // Ignore unknown keys - no action needed
+                    break;
+            }
+
+            if (need_new_diff) {
+                // Clean up old diff
+                VecDeinit (&diff);
+
+                // Generate new diff with selected item
+                current_item = VecPtrAt (&items, selected_idx);
+                diff         = GetDiff (&src, &current_item->target_content);
+            }
+
+            if (need_redraw) {
+                if (!drawInteractiveDiff (c, &items, selected_idx, &diff, false)) {
+                    r_cons_canvas_free (c);
+                    c = NULL;
+                    break;
+                }
+            }
+        }
+
+        // Wait for actual user input (blocking)
+        ch = r_cons_readchar();
+    }
+
+cleanup:
+    // Cleanup
+    if (c) {
+        r_cons_canvas_free (c);
+    }
+
+    // Lazy cleanup - free help canvas only at exit
+    if (help_canvas) {
+        r_cons_canvas_free (help_canvas);
+        help_canvas = NULL;
+    }
+
+    VecDeinit (&diff);
+    StrDeinit (&src);
+
+    // Clean up similar functions data
+    VecDeinit (&similar_functions);
+    SimilarFunctionsRequestDeinit (&search);
+
+    // Clean up list items
+    VecForeachPtr (&items, item, { DiffListItemDeinit (item); });
+    VecDeinit (&items);
+
+    return R_CMD_STATUS_OK;
 }
 
 /**

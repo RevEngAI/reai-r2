@@ -28,6 +28,11 @@ commands:
         entries:
           - text: REfr main new_main
             comment: "Rename function 'main' to 'new_main'"
+
+  - name: REfaf
+    cname: function_assembly_diff
+    summary: Diff assembly of different versions of same function
+    args: []
     
   - name: REfs
     cname: function_similarity_search

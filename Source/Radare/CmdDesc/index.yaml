@@ -57,6 +57,7 @@ commands:
     summary: Show RevEng.AI ASCII art
     args: []
     
+  # Group references - these appear in RE help
   - group: REa
     summary: Commands for working with RevEngAI analyses
     
