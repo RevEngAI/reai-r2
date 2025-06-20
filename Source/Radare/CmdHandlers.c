@@ -468,7 +468,7 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                     DISPLAY_INFO ("AI decompilation complete ;-)\n");
 
                     AiDecompilation aidec = GetAiDecompilation (GetConnection(), fn_id, true);
-                    Str*            smry  = &aidec.raw_ai_summary;
+                    Str*            smry  = &aidec.ai_summary;
                     Str*            dec   = &aidec.raw_decompilation;
 
                     Str code = StrInit();
@@ -566,6 +566,7 @@ R_IPI RCmdStatus r_ai_decompile_handler (RCore* core, int argc, const char** arg
                     AiDecompilationDeinit (&aidec);
                     return R_CMD_STATUS_OK;
                 }
+
                 default :
                     LOG_FATAL ("Unreachable code reached. Invalid decompilation status");
                     return R_CMD_STATUS_OK;
