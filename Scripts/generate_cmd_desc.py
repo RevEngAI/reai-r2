@@ -344,19 +344,32 @@ void print_root_help(void) {
 void print_{cname}_help(void) {{
     r_cons_println("{usage_line}");"""
 
-        # Notes and Examples
+        # Process all detail sections
         for detail in cmd.get('details', []):
-            if detail.get('name') == 'Notes':
+            detail_name = detail.get('name')
+            if detail_name == 'Notes':
                 help_impl += '\n    r_cons_println("\\nNotes:");'
                 for entry in detail.get('entries', []):
                     text = entry.get('text', '').replace('"', '\\"')
                     help_impl += f'\n    r_cons_println("  {text}");'
-            elif detail.get('name') == 'Examples':
+            elif detail_name == 'Examples':
                 help_impl += '\n    r_cons_println("\\nExamples:");'
                 for entry in detail.get('entries', []):
                     text = entry.get('text', '').replace('"', '\\"')
                     comment = entry.get('comment', '').replace('"', '\\"')
                     help_impl += f'\n    r_cons_println("{text}  # {comment}");'
+            elif detail_name == 'Usage':
+                help_impl += '\n    r_cons_println("\\nUsage:");'
+                for entry in detail.get('entries', []):
+                    text = entry.get('text', '').replace('"', '\\"')
+                    comment = entry.get('comment', '').replace('"', '\\"')
+                    help_impl += f'\n    r_cons_println("| {text:<15} # {comment}");'
+            elif detail_name == 'Controls':
+                help_impl += '\n    r_cons_println("\\nControls:");'
+                for entry in detail.get('entries', []):
+                    text = entry.get('text', '').replace('"', '\\"')
+                    comment = entry.get('comment', '').replace('"', '\\"')
+                    help_impl += f'\n    r_cons_println("| {text:<6} # {comment}");'
 
         help_impl += '\n}\n'
         implementations.append(help_impl)
