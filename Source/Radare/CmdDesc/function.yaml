@@ -28,11 +28,63 @@ commands:
         entries:
           - text: REfr main new_main
             comment: "Rename function 'main' to 'new_main'"
-
   - name: REfaf
     cname: function_assembly_diff
-    summary: Diff assembly of different versions of same function
-    args: []
+    summary: Interactive diff viewer for assembly code of similar functions
+    args:
+      - name: function_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: min_similarity
+        type: ARG_TYPE_NUMBER
+        optional: true
+        default: 90
+    details:
+      - name: Usage
+        entries:
+          - text: "REfaf main"
+            comment: "Show interactive diff for function 'main' with similar functions (default 90% similarity)"
+          - text: "REfaf parse_header 85"
+            comment: "Show interactive diff for 'parse_header' with minimum 85% similarity"
+      - name: Controls
+        entries:
+          - text: "j/k"
+            comment: "Navigate through similar functions list"
+          - text: "h or ?"
+            comment: "Show help overlay"
+          - text: "r"
+            comment: "Rename source function based on selected similar function"
+          - text: "q"
+            comment: "Exit interactive diff viewer"
+    
+  - name: REfdf
+    cname: function_decompilation_diff
+    summary: Interactive diff viewer for decompilation code of similar functions
+    args:
+      - name: function_name
+        type: ARG_TYPE_STRING
+        optional: false
+      - name: min_similarity
+        type: ARG_TYPE_NUMBER
+        optional: true
+        default: 90
+    details:
+      - name: Usage
+        entries:
+          - text: "REfdf main"
+            comment: "Show interactive diff for function 'main' decompilation with similar functions (default 90% similarity)"
+          - text: "REfdf parse_header 85"
+            comment: "Show interactive diff for 'parse_header' decompilation with minimum 85% similarity"
+      - name: Controls
+        entries:
+          - text: "j/k"
+            comment: "Navigate through similar functions list"
+          - text: "h or ?"
+            comment: "Show help overlay"
+          - text: "r"
+            comment: "Rename source function based on selected similar function"
+          - text: "q"
+            comment: "Exit interactive diff viewer"
     
   - name: REfs
     cname: function_similarity_search
