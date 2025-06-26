@@ -137,7 +137,45 @@ BinaryId GetBinaryId() {
 
 void SetBinaryId (BinaryId binary_id) {
     if (getPlugin (false)) {
+        LOG_INFO ("Setting binary ID to %llu in local plugin", binary_id);
         getPlugin (false)->binary_id = binary_id;
+    } else {
+        LOG_ERROR ("Failed to set binary ID - plugin not initialized");
+    }
+}
+
+// In cutter, due to multithreading, we can't use local plugin instance to get binary ID
+// So we use RCore config to get binary ID
+BinaryId GetBinaryIdFromCore (RCore *core) {
+    // First try to get from local plugin instance
+    if (getPlugin (false)) {
+        BinaryId local_id = getPlugin (false)->binary_id;
+        if (local_id != 0) {
+            LOG_INFO ("Got binary ID %llu from local plugin", local_id);
+            return local_id;
+        }
+    }
+    
+    // If local not available or is 0, try to get from RCore config
+    if (core && core->config) {
+        BinaryId binary_id = (BinaryId)r_config_get_i (core->config, "reai.binary_id");
+        if (binary_id != 0) {
+            LOG_INFO ("Got binary ID %llu from RCore config", binary_id);
+            return binary_id;
+        }
+    }
+    
+    return 0;
+}
+
+// In cutter, due to multithreading, we can't use local plugin instance to get binary ID
+// So we use RCore config to set binary ID
+void SetBinaryIdInCore (RCore *core, BinaryId binary_id) {
+    if (core && core->config) {
+        r_config_lock(core->config, false);
+        r_config_set_i (core->config, "reai.binary_id", binary_id);
+        r_config_lock(core->config, true);
+        LOG_INFO ("Set binary ID %llu in RCore config", binary_id);
     }
 }
 
@@ -205,6 +243,13 @@ void rApplyAnalysis (RCore *core, BinaryId binary_id) {
     }
 
     if (rCanWorkWithAnalysis (binary_id, true)) {
+        // Set binary ID BEFORE applying analysis so that function rename hooks work properly
+        SetBinaryId (binary_id);
+        
+        // Also set in RCore config as backup for cross-context access
+        SetBinaryIdInCore (core, binary_id);
+        LOG_INFO ("Set binary ID %llu in both local plugin and RCore config", binary_id);
+        
         FunctionInfos functions = GetBasicFunctionInfoUsingBinaryId (GetConnection(), binary_id);
         if (!functions.length) {
             DISPLAY_ERROR ("Failed to get functions from RevEngAI analysis.");
@@ -223,8 +268,6 @@ void rApplyAnalysis (RCore *core, BinaryId binary_id) {
             }
             r_anal_function_rename (fn, function->symbol.name.data);
         });
-
-        SetBinaryId (binary_id);
 
         if (!failed) {
             DISPLAY_INFO ("All functions renamed successfully");
@@ -256,13 +299,14 @@ void rAutoRenameFunctions (
     bool   debug_symbols_only
 ) {
     rClearMsg();
-    if (GetBinaryId() && rCanWorkWithAnalysis (GetBinaryId(), true)) {
+    BinaryId binary_id = GetBinaryIdFromCore(core);
+    if (binary_id && rCanWorkWithAnalysis (binary_id, true)) {
         BatchAnnSymbolRequest batch_ann = BatchAnnSymbolRequestInit();
 
         batch_ann.debug_symbols_only = debug_symbols_only;
         batch_ann.limit              = max_results_per_function;
         batch_ann.distance           = 1. - (min_similarity / 100.);
-        batch_ann.analysis_id        = AnalysisIdFromBinaryId (GetConnection(), GetBinaryId());
+        batch_ann.analysis_id        = AnalysisIdFromBinaryId (GetConnection(), binary_id);
         if (!batch_ann.analysis_id) {
             DISPLAY_ERROR ("Failed to convert binary id to analysis id.");
             return;
@@ -277,7 +321,7 @@ void rAutoRenameFunctions (
 
         u64           base_addr = rGetCurrentBinaryBaseAddr (core);
         FunctionInfos functions =
-            GetBasicFunctionInfoUsingBinaryId (GetConnection(), GetBinaryId());
+            GetBasicFunctionInfoUsingBinaryId (GetConnection(), binary_id);
 
         RListIter     *it = NULL;
         RAnalFunction *fn = NULL;

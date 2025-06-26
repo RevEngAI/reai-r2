@@ -62,6 +62,17 @@ extern "C" {
     void     SetBinaryId (BinaryId binary_id);
 
     ///
+    /// Get binary ID with RCore fallback for cross-context access.
+    ///
+    /// core[in] : RCore instance to get config from if local storage unavailable.
+    ///
+    /// SUCCESS : A non-zero binary ID if found locally or in RCore config.
+    /// FAILURE : 0.
+    ///
+    BinaryId GetBinaryIdFromCore (RCore *core);
+    void     SetBinaryIdInCore (RCore *core, BinaryId binary_id);
+
+    ///
     /// Get all available AI models.
     ///
     /// SUCCESS : Vector of ModelInfo objects filled with valid data.

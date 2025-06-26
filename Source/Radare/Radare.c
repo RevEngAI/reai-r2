@@ -17,6 +17,8 @@
 // reai
 #include <Reai/Log.h>
 
+typedef int (*RAnalysisFunctionRenameCallback) (RAnal *analysis, void *core, RAnalFunction *fcn, const char *oldname);
+
 Str *getMsg() {
     static Str  s;
     static bool is_inited = false;
@@ -56,6 +58,46 @@ void rAppendMsg (LogLevel level, Str *msg) {
     );
 }
 
+// NOTE: Hook function for function rename
+// This is called back from Radare2 event system whenever a function is renamed.
+static int reai_on_fcn_rename (struct r_anal_t *analysis, RCore *core, RAnalFunction *fcn, const char *oldname) {
+    if (!analysis || !core || !fcn || !fcn->name || !oldname) {
+        LOG_ERROR ("Invalid arguments in function rename callback");
+        return 1;
+    }
+    
+    LOG_INFO ("Function rename detected: new name '%s' at 0x%llx", fcn->name, fcn->addr);
+
+    // Only sync if we have a valid binary ID (analysis is applied)
+    // Use GetBinaryIdFromCore to check both local storage and RCore config.
+    // Check if we can work with the current analysis
+    if (!rCanWorkWithAnalysis (GetBinaryIdFromCore(core), false)) {
+        LOG_INFO ("RevEngAI analysis not ready, skipping function rename sync");
+        return 1;
+    }
+
+    // Look up the RevEngAI function ID for this Radare2 function
+    FunctionId fn_id = rLookupFunctionId (core, fcn);
+    if (!fn_id) {
+        LOG_ERROR ("Failed to find RevEngAI function ID for function '%s' at 0x%llx", fcn->name, fcn->addr);
+        return 1;
+    }
+
+    // Create new name string for the API call
+    Str new_name = StrInitFromZstr (fcn->name);
+
+    // Call RevEngAI API to rename the function
+    if (RenameFunction (GetConnection(), fn_id, new_name)) {
+        LOG_INFO ("Successfully synced function rename with RevEngAI: '%s' (ID: %llu)", fcn->name, fn_id);
+        StrDeinit (&new_name);
+        return 0;
+    } else {
+        LOG_ERROR ("Failed to sync function rename with RevEngAI for function '%s' (ID: %llu)", fcn->name, fn_id);
+        StrDeinit (&new_name);
+        return 1;
+    }
+}
+
 int reai_r2_core_init (void *user, const char *cmd) {
     (void)cmd;
 
@@ -67,6 +109,22 @@ int reai_r2_core_init (void *user, const char *cmd) {
     if (!core) {
         DISPLAY_ERROR ("Invalid radare core provided. Cannot initialize plugin.");
         return false;
+    }
+
+    // Register our config variables
+    if (core->config) {
+        r_config_set_i (core->config, "reai.binary_id", 0);
+        r_config_desc (core->config, "reai.binary_id", "Current RevEngAI binary ID for cross-context access");
+        LOG_INFO ("Registered RevEngAI config variable: reai.binary_id");
+    }
+
+    // Install our hook
+    if (core->anal) {
+        core->anal->cb.on_fcn_rename = (RAnalysisFunctionRenameCallback)reai_on_fcn_rename;
+        core->anal->user = core;  // Set the user data in the analysis structure
+        LOG_INFO ("RevEngAI function rename hook installed");
+    } else {
+        LOG_ERROR ("Failed to install function rename hook: analysis not available");
     }
 
     return true;
