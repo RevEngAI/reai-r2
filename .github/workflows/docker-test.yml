@@ -24,9 +24,11 @@ jobs:
     - name: Build ARM64 Docker image
       run: |
         # Build ARM64 Docker image natively on ARM64 runner
+        # Pass PR branch name, defaults to "master" if empty (consistent with other workflows)
         docker build \
           --build-arg REVENG_APIKEY=test-api-key-for-ci \
           --build-arg REVENG_HOST=https://api.reveng.ai \
+          --build-arg BRANCH_NAME="${{ github.head_ref }}" \
           -t reai-r2:test .
         
     - name: Create test binary
