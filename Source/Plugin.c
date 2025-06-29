@@ -26,6 +26,7 @@
 #include <Plugin.h>
 #include <stdlib.h>
 #include "Radare/PluginVersion.h"
+#include "Reai/Util/Str.h"
 #include "r_version.h"
 
 typedef struct Plugin {
@@ -155,7 +156,7 @@ BinaryId GetBinaryIdFromCore (RCore *core) {
             return local_id;
         }
     }
-    
+
     // If local not available or is 0, try to get from RCore config
     if (core && core->config) {
         BinaryId binary_id = (BinaryId)r_config_get_i (core->config, "reai.binary_id");
@@ -164,7 +165,7 @@ BinaryId GetBinaryIdFromCore (RCore *core) {
             return binary_id;
         }
     }
-    
+
     return 0;
 }
 
@@ -172,9 +173,9 @@ BinaryId GetBinaryIdFromCore (RCore *core) {
 // So we use RCore config to set binary ID
 void SetBinaryIdInCore (RCore *core, BinaryId binary_id) {
     if (core && core->config) {
-        r_config_lock(core->config, false);
+        r_config_lock (core->config, false);
         r_config_set_i (core->config, "reai.binary_id", binary_id);
-        r_config_lock(core->config, true);
+        r_config_lock (core->config, true);
         LOG_INFO ("Set binary ID %llu in RCore config", binary_id);
     }
 }
@@ -245,11 +246,11 @@ void rApplyAnalysis (RCore *core, BinaryId binary_id) {
     if (rCanWorkWithAnalysis (binary_id, true)) {
         // Set binary ID BEFORE applying analysis so that function rename hooks work properly
         SetBinaryId (binary_id);
-        
+
         // Also set in RCore config as backup for cross-context access
         SetBinaryIdInCore (core, binary_id);
         LOG_INFO ("Set binary ID %llu in both local plugin and RCore config", binary_id);
-        
+
         FunctionInfos functions = GetBasicFunctionInfoUsingBinaryId (GetConnection(), binary_id);
         if (!functions.length) {
             DISPLAY_ERROR ("Failed to get functions from RevEngAI analysis.");
@@ -299,7 +300,7 @@ void rAutoRenameFunctions (
     bool   debug_symbols_only
 ) {
     rClearMsg();
-    BinaryId binary_id = GetBinaryIdFromCore(core);
+    BinaryId binary_id = GetBinaryIdFromCore (core);
     if (binary_id && rCanWorkWithAnalysis (binary_id, true)) {
         BatchAnnSymbolRequest batch_ann = BatchAnnSymbolRequestInit();
 
@@ -320,8 +321,7 @@ void rAutoRenameFunctions (
         }
 
         u64           base_addr = rGetCurrentBinaryBaseAddr (core);
-        FunctionInfos functions =
-            GetBasicFunctionInfoUsingBinaryId (GetConnection(), binary_id);
+        FunctionInfos functions = GetBasicFunctionInfoUsingBinaryId (GetConnection(), binary_id);
 
         RListIter     *it = NULL;
         RAnalFunction *fn = NULL;
@@ -340,6 +340,7 @@ void rAutoRenameFunctions (
             if (best_match) {
                 LOG_INFO ("Renamed '%s' to '%s'", fn->name, best_match->function_name.data);
                 r_anal_function_rename (fn, best_match->function_name.data);
+                RenameFunction (GetConnection(), id, best_match->function_name);
             }
         }
 
