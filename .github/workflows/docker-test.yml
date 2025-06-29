@@ -27,7 +27,6 @@ jobs:
         docker build \
           --build-arg REVENG_APIKEY=test-api-key-for-ci \
           --build-arg REVENG_HOST=https://api.reveng.ai \
-          --build-arg BRANCH_NAME=${{ github.ref_name }} \
           -t reai-r2:test .
         
     - name: Create test binary
