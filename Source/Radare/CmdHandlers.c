@@ -1737,7 +1737,7 @@ bool drawConfirmationDialog (RConsCanvas* c, int w, int h, const char* message) 
     int msg_y = box_y + 2;
 
     VecForeachIdx (&wrapped_lines, line, idx, {
-        if (idx < box_height - 4) { // Leave space for options
+        if ((i64)idx < box_height - 4) { // Leave space for options
             r_cons_canvas_write_at (c, line.data, msg_x, msg_y + idx);
         }
     });
@@ -2093,7 +2093,7 @@ R_IPI RCmdStatus r_function_assembly_diff_handler (RCore* core, int argc, const 
     }
 
     r_cons_printf (
-        "Found %llu similar functions for '%s' (>= %u%% similarity)\n",
+        "Found %zu similar functions for '%s' (>= %u%% similarity)\n",
         similar_functions.length,
         function_name,
         min_similarity

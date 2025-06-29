@@ -24,15 +24,23 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Download Linux artifacts
-      uses: dawidd6/action-download-artifact@v3
+      uses: dawidd6/action-download-artifact@v6
       with:
         workflow: build-linux.yml
         name: reai-r2-linux-binaries
-        path: release-artifacts/linux/
+        path: release-artifacts/linux-x86_64/
+        if_no_artifact_found: warn
+
+    - name: Download Linux ARM64 artifacts from Docker
+      uses: dawidd6/action-download-artifact@v6
+      with:
+        workflow: docker-test.yml
+        name: reai-r2-docker-linux-aarch64-binaries
+        path: release-artifacts/linux-aarch64/
         if_no_artifact_found: warn
         
     - name: Download macOS artifacts
-      uses: dawidd6/action-download-artifact@v3
+      uses: dawidd6/action-download-artifact@v6
       with:
         workflow: build-macos.yml
         name: reai-r2-macos-binaries
@@ -40,7 +48,7 @@ jobs:
         if_no_artifact_found: warn
         
     - name: Download Windows artifacts
-      uses: dawidd6/action-download-artifact@v3
+      uses: dawidd6/action-download-artifact@v6
       with:
         workflow: build-windows.yml
         name: reai-r2-windows-binaries
@@ -56,22 +64,28 @@ jobs:
         find . -type f | sort
         
         # Create platform-specific packages
-        if [ -d "linux" ]; then
-          echo "Creating Linux package..."
-          tar -czf "reai-r2-linux.tar.gz" -C linux .
-          echo "✅ Created reai-r2-linux.tar.gz"
+        if [ -d "linux-x86_64" ]; then
+          echo "Creating Linux x86_64 package..."
+          tar -czf "reai-r2-linux-x86_64.tar.gz" -C linux-x86_64 .
+          echo "[OK] Created reai-r2-linux-x86_64.tar.gz"
+        fi
+
+        if [ -d "linux-aarch64" ]; then
+          echo "Creating Linux ARM64 package..."
+          tar -czf "reai-r2-linux-aarch64.tar.gz" -C linux-aarch64 .
+          echo "[OK] Created reai-r2-linux-aarch64.tar.gz"
         fi
         
         if [ -d "macos" ]; then
           echo "Creating macOS package..."
           tar -czf "reai-r2-macos.tar.gz" -C macos .
-          echo "✅ Created reai-r2-macos.tar.gz"
+          echo "[OK] Created reai-r2-macos.tar.gz"
         fi
         
         if [ -d "windows" ]; then
           echo "Creating Windows package..."
           cd windows && zip -r "../reai-r2-windows.zip" . && cd ..
-          echo "✅ Created reai-r2-windows.zip"
+          echo "[OK] Created reai-r2-windows.zip"
         fi
         
         # List final packages
@@ -109,7 +123,8 @@ jobs:
           
           | Platform | Download | Contents |
           |----------|----------|----------|
-          | Linux | `reai-r2-linux.tar.gz` | Radare2 plugin + install script |
+          | Linux x86_64 | `reai-r2-linux-x86_64.tar.gz` | Radare2 plugin + install script |
+          | Linux ARM64 | `reai-r2-linux-aarch64.tar.gz` | Radare2 plugin + install script |
           | macOS | `reai-r2-macos.tar.gz` | Radare2 plugin + install script |
           | Windows | `reai-r2-windows.zip` | Radare2 plugin + install script |
           
@@ -117,11 +132,25 @@ jobs:
           
           Use the included install scripts for automatic installation:
           
-          #### Linux
+          #### Linux x86_64
           ```bash
-          wget https://github.com/RevEngAI/reai-r2/releases/download/${{ steps.tag_name.outputs.tag_name }}/reai-r2-linux.tar.gz
-          tar -xzf reai-r2-linux.tar.gz
-          cd reai-r2-linux
+          wget https://github.com/RevEngAI/reai-r2/releases/download/${{ steps.tag_name.outputs.tag_name }}/reai-r2-linux-x86_64.tar.gz
+          tar -xzf reai-r2-linux-x86_64.tar.gz
+          cd reai-r2-linux-x86_64
+          
+          # Install dependencies (Ubuntu/Debian)
+          sudo apt install patchelf radare2
+          
+          # Run installer
+          chmod +x install-linux.sh
+          ./install-linux.sh
+          ```
+
+          #### Linux ARM64
+          ```bash
+          wget https://github.com/RevEngAI/reai-r2/releases/download/${{ steps.tag_name.outputs.tag_name }}/reai-r2-linux-aarch64.tar.gz
+          tar -xzf reai-r2-linux-aarch64.tar.gz
+          cd reai-r2-linux-aarch64
           
           # Install dependencies (Ubuntu/Debian)
           sudo apt install patchelf radare2
