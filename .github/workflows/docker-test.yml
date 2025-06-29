@@ -3,9 +3,6 @@ name: Docker ARM64 Build and Test
 on:
   pull_request:
     branches: [ "**" ]
-    paths:
-      - 'Dockerfile'
-      - '.github/workflows/docker-test.yml'
   workflow_dispatch:
 
 jobs:

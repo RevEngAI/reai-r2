@@ -69,8 +69,8 @@ extern "C" {
     /// SUCCESS : A non-zero binary ID if found locally or in RCore config.
     /// FAILURE : 0.
     ///
-    BinaryId GetBinaryIdFromCore (RCore *core);
-    void     SetBinaryIdInCore (RCore *core, BinaryId binary_id);
+    BinaryId GetBinaryIdFromCore (RCore* core);
+    void     SetBinaryIdInCore (RCore* core, BinaryId binary_id);
 
     ///
     /// Get all available AI models.

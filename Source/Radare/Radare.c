@@ -17,7 +17,12 @@
 // reai
 #include <Reai/Log.h>
 
-typedef int (*RAnalysisFunctionRenameCallback) (RAnal *analysis, void *core, RAnalFunction *fcn, const char *oldname);
+typedef int (*RAnalysisFunctionRenameCallback) (
+    RAnal         *analysis,
+    void          *core,
+    RAnalFunction *fcn,
+    const char    *oldname
+);
 
 Str *getMsg() {
     static Str  s;
@@ -60,18 +65,23 @@ void rAppendMsg (LogLevel level, Str *msg) {
 
 // NOTE: Hook function for function rename
 // This is called back from Radare2 event system whenever a function is renamed.
-static int reai_on_fcn_rename (struct r_anal_t *analysis, RCore *core, RAnalFunction *fcn, const char *oldname) {
+static int reai_on_fcn_rename (
+    struct r_anal_t *analysis,
+    RCore           *core,
+    RAnalFunction   *fcn,
+    const char      *oldname
+) {
     if (!analysis || !core || !fcn || !fcn->name || !oldname) {
         LOG_ERROR ("Invalid arguments in function rename callback");
         return 1;
     }
-    
+
     LOG_INFO ("Function rename detected: new name '%s' at 0x%llx", fcn->name, fcn->addr);
 
     // Only sync if we have a valid binary ID (analysis is applied)
     // Use GetBinaryIdFromCore to check both local storage and RCore config.
     // Check if we can work with the current analysis
-    if (!rCanWorkWithAnalysis (GetBinaryIdFromCore(core), false)) {
+    if (!rCanWorkWithAnalysis (GetBinaryIdFromCore (core), false)) {
         LOG_INFO ("RevEngAI analysis not ready, skipping function rename sync");
         return 1;
     }
@@ -79,7 +89,11 @@ static int reai_on_fcn_rename (struct r_anal_t *analysis, RCore *core, RAnalFunc
     // Look up the RevEngAI function ID for this Radare2 function
     FunctionId fn_id = rLookupFunctionId (core, fcn);
     if (!fn_id) {
-        LOG_ERROR ("Failed to find RevEngAI function ID for function '%s' at 0x%llx", fcn->name, fcn->addr);
+        LOG_ERROR (
+            "Failed to find RevEngAI function ID for function '%s' at 0x%llx",
+            fcn->name,
+            fcn->addr
+        );
         return 1;
     }
 
@@ -88,11 +102,19 @@ static int reai_on_fcn_rename (struct r_anal_t *analysis, RCore *core, RAnalFunc
 
     // Call RevEngAI API to rename the function
     if (RenameFunction (GetConnection(), fn_id, new_name)) {
-        LOG_INFO ("Successfully synced function rename with RevEngAI: '%s' (ID: %llu)", fcn->name, fn_id);
+        LOG_INFO (
+            "Successfully synced function rename with RevEngAI: '%s' (ID: %llu)",
+            fcn->name,
+            fn_id
+        );
         StrDeinit (&new_name);
         return 0;
     } else {
-        LOG_ERROR ("Failed to sync function rename with RevEngAI for function '%s' (ID: %llu)", fcn->name, fn_id);
+        LOG_ERROR (
+            "Failed to sync function rename with RevEngAI for function '%s' (ID: %llu)",
+            fcn->name,
+            fn_id
+        );
         StrDeinit (&new_name);
         return 1;
     }
@@ -115,7 +137,11 @@ int reai_r2_core_init (void *user, const char *cmd) {
     if (core->config) {
         r_config_lock (core->config, false);
         r_config_set_i (core->config, "reai.binary_id", 0);
-        r_config_desc (core->config, "reai.binary_id", "Current RevEngAI binary ID for cross-context access");
+        r_config_desc (
+            core->config,
+            "reai.binary_id",
+            "Current RevEngAI binary ID for cross-context access"
+        );
         r_config_lock (core->config, true);
         LOG_INFO ("Registered RevEngAI config variable: reai.binary_id");
     }
@@ -123,7 +149,7 @@ int reai_r2_core_init (void *user, const char *cmd) {
     // Install our hook
     if (core->anal) {
         core->anal->cb.on_fcn_rename = (RAnalysisFunctionRenameCallback)reai_on_fcn_rename;
-        core->anal->user = core;  // Set the user data in the analysis structure
+        core->anal->user             = core; // Set the user data in the analysis structure
         LOG_INFO ("RevEngAI function rename hook installed");
     } else {
         LOG_ERROR ("Failed to install function rename hook: analysis not available");
