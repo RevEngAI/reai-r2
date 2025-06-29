@@ -113,8 +113,10 @@ int reai_r2_core_init (void *user, const char *cmd) {
 
     // Register our config variables
     if (core->config) {
+        r_config_lock (core->config, false);
         r_config_set_i (core->config, "reai.binary_id", 0);
         r_config_desc (core->config, "reai.binary_id", "Current RevEngAI binary ID for cross-context access");
+        r_config_lock (core->config, true);
         LOG_INFO ("Registered RevEngAI config variable: reai.binary_id");
     }
 

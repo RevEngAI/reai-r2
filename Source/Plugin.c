@@ -189,7 +189,7 @@ ModelInfos *GetModels() {
     }
 }
 
-AnnSymbol *getMostSimilarFunctionSymbol (AnnSymbols *symbols, FunctionId origin_fn_id) {
+AnnSymbol *rzGetMostSimilarFunctionSymbol (AnnSymbols *symbols, FunctionId origin_fn_id) {
     if (!symbols) {
         LOG_FATAL ("Function matches are invalid. Cannot proceed.");
     }
@@ -336,7 +336,7 @@ void rAutoRenameFunctions (
                 continue;
             }
 
-            AnnSymbol *best_match = getMostSimilarFunctionSymbol (&map, id);
+            AnnSymbol *best_match = rzGetMostSimilarFunctionSymbol (&map, id);
             if (best_match) {
                 LOG_INFO ("Renamed '%s' to '%s'", fn->name, best_match->function_name.data);
                 r_anal_function_rename (fn, best_match->function_name.data);

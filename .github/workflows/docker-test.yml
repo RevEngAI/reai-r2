@@ -1,0 +1,192 @@
+name: Docker ARM64 Build and Test
+
+on:
+  pull_request:
+    branches: [ "**" ]
+    paths:
+      - 'Dockerfile'
+      - '.github/workflows/docker-test.yml'
+  workflow_dispatch:
+
+jobs:
+  docker-test-arm64:
+    runs-on: ubuntu-24.04-arm
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build ARM64 Docker image
+      run: |
+        # Build ARM64 Docker image natively on ARM64 runner
+        # Pass PR branch name, defaults to "master" if empty (consistent with other workflows)
+        docker build \
+          --build-arg REVENG_APIKEY=test-api-key-for-ci \
+          --build-arg REVENG_HOST=https://api.reveng.ai \
+          --build-arg BRANCH_NAME="${{ github.head_ref }}" \
+          -t reai-r2:test .
+        
+    - name: Create test binary
+      run: |
+        # Create a simple test binary
+        cat > test.c << 'EOF'
+        #include <stdio.h>
+        int main() {
+            printf("Hello, RevEngAI!\n");
+            return 0;
+        }
+        EOF
+        
+        # Compile test binary
+        gcc -o test_binary test.c
+        
+        # Make it executable and show info
+        chmod +x test_binary
+        file test_binary
+        ls -la test_binary
+        
+    - name: Test Docker container startup
+      run: |
+        echo "Testing Docker container startup..."
+        docker run --rm reai-r2:test echo "Container started successfully"
+        
+    - name: Test radare2 installation
+      run: |
+        echo "Testing radare2 installation..."
+        docker run --rm reai-r2:test r2 -v
+        
+    - name: Test RevEng.AI plugin
+      run: |
+        echo "Testing RevEng.AI plugin..."
+        
+        docker run --rm \
+          -v $(pwd)/test_binary:/home/revengai/binary \
+          reai-r2:test \
+          bash -c "
+            r2 -q -c 'RE' /home/revengai/binary > plugin_output.txt 2>&1 || true
+            
+            echo '=== Plugin Output ==='
+            cat plugin_output.txt
+            
+            if grep -q 'REf\|REa\|REd\|REc\|REb' plugin_output.txt; then
+              echo '[OK] RevEng.AI plugin working!'
+            else
+              echo '[FAIL] RevEng.AI plugin not working'
+              exit 1
+            fi
+          "
+          
+    - name: Test configuration file
+      run: |
+        echo "Testing configuration file..."
+        
+        docker run --rm reai-r2:test \
+          bash -c "
+            echo 'Checking configuration file...'
+            if [ -f /home/revengai/.creait ]; then
+              echo '[OK] Configuration file exists'
+              echo 'Contents:'
+              cat /home/revengai/.creait
+            else
+              echo '[FAIL] Configuration file not found'
+              exit 1
+            fi
+          "
+          
+    - name: Test architecture info
+      run: |
+        echo "Testing ARM64 architecture compatibility..."
+        
+        docker run --rm reai-r2:test \
+          bash -c "
+            echo 'Architecture: \$(uname -m)'
+            echo 'Radare2 version:'
+            r2 -v
+            echo 'Library architecture check:'
+            file /home/revengai/.local/lib/libreai* || echo 'No reai libraries found'
+            echo 'Plugin architecture check:'
+            PLUGIN_DIR=\$(r2 -H R2_USER_PLUGINS)
+            file \"\$PLUGIN_DIR\"/*reai* || echo 'No reai plugins found'
+          "
+          
+
+          
+    - name: Test summary
+      run: |
+        echo "=== Docker ARM64 Test Summary ==="
+        echo "Platform: Linux ARM64 (aarch64)"
+        echo "Runner: ubuntu-24.04-arm"
+        echo "[OK] Docker image built successfully"
+        echo "[OK] Container starts correctly"
+        echo "[OK] Radare2 is installed and working"
+        echo "[OK] Configuration file is created"
+        echo "[OK] RevEng.AI plugin tested"
+        echo ""
+        echo "Docker image ready for use with:"
+        echo "docker run -it --rm -v /path/to/binary:/home/revengai/binary reai-r2:test r2 binary"
+
+    - name: Extract ARM64 binaries from Docker container
+      run: |
+        echo "=== Extracting specific ARM64 binaries ==="
+        mkdir -p artifacts
+        
+        # Create a temporary container to extract files
+        CONTAINER_ID=$(docker create reai-r2:test)
+        
+        # Extract only the specific files we need
+        echo "Extracting libreai.so..."
+        docker cp "$CONTAINER_ID:/home/revengai/.local/lib/libreai.so" artifacts/ 2>/dev/null || echo "[WARN] libreai.so not found"
+        
+        echo "Extracting reai_radare.so..."
+        # Check multiple possible locations for the radare2 plugin
+        R2_PLUGIN_DIR=$(docker run --rm reai-r2:test r2 -H R2_USER_PLUGINS 2>/dev/null || echo "/home/revengai/.local/share/radare2/plugins")
+        docker cp "$CONTAINER_ID:$R2_PLUGIN_DIR/reai_radare.so" artifacts/ 2>/dev/null || \
+        docker cp "$CONTAINER_ID:/home/revengai/.local/lib/reai_radare.so" artifacts/ 2>/dev/null || \
+        echo "[WARN] reai_radare.so not found"
+        
+        # Copy install scripts
+        echo "Adding install-linux.sh..."
+        cp Scripts/install-linux.sh artifacts/ || echo "[WARN] install-linux.sh not found"
+        chmod +x artifacts/install-linux.sh 2>/dev/null || true
+        
+        echo "Adding README.md..."
+        cp Scripts/README.md artifacts/ || echo "[WARN] Scripts/README.md not found"
+        
+        # Clean up temporary container
+        docker rm "$CONTAINER_ID"
+        
+        # Show what we extracted
+        echo "=== Extracted ARM64 files ==="
+        ls -la artifacts/
+        
+        # Verify we have the required files
+        echo "=== ARM64 File verification ==="
+        REQUIRED_FILES=("libreai.so" "reai_radare.so" "install-linux.sh" "README.md")
+        MISSING_FILES=()
+        
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [ -f "artifacts/$file" ]; then
+            echo "[OK] Found $file"
+          else
+            echo "[FAIL] Missing $file"
+            MISSING_FILES+=("$file")
+          fi
+        done
+        
+        if [ ${#MISSING_FILES[@]} -eq 0 ]; then
+          echo "[OK] All required files extracted successfully"
+        else
+          echo "[WARN] Missing files: ${MISSING_FILES[*]}"
+        fi
+
+    - name: Upload ARM64 artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: reai-r2-docker-linux-aarch64-binaries
+        path: artifacts/
+        if-no-files-found: warn
