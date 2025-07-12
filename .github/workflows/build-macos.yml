@@ -8,6 +8,10 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+
+    env:
+      E2E_API_KEY: ${{ secrets.E2E_API_KEY }}
+      E2E_API_URL: ${{ secrets.E2E_API_URL }}   
     
     steps:
     - name: Checkout repository
@@ -32,6 +36,7 @@ jobs:
         source .venv/bin/activate
         python -m pip install --upgrade pip
         python -m pip install pyyaml
+        python -m pip install r2pipe
         
     - name: Build project
       run: |
@@ -71,3 +76,13 @@ jobs:
         name: reai-r2-macos-binaries
         path: upload-staging/
         if-no-files-found: warn 
+        
+    - name: Prepare dummy binary
+      run: |
+        echo -e '#include <stdio.h>\nint main(){puts("Hi");return 0;}' > test.c
+        gcc -o test.bin test.c
+
+    - name: Run Radare2 plugin tests
+      run: |
+        source .venv/bin/activate
+        python3 Tests/radare2_test.py test.bin
