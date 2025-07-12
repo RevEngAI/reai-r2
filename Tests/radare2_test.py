@@ -69,11 +69,11 @@ def test_plugin_init_cmd(r2):
     res = True
     res &= r2.cmd('REi') is not None          # Will fail and print log messages
 
-    if r2.cmd(f'REi {api_key}').strip() != "":
+    if r2.cmd(f'REi {api_key}').strip() != "RevEngAI plugin initialized successfully":
         print("[ERROR] REi <key> returned unexpected output")
         res = False
     else:
-        print("[SUCCESS] REi <key> executed silently as expected")
+        print("[SUCCESS] REi <key> executed as expected")
     
     try:
         with open(os.path.expanduser('~/.creait'), 'r') as config:
