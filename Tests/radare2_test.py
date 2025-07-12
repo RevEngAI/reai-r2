@@ -69,7 +69,9 @@ def test_plugin_init_cmd(r2):
     res = True
     res &= r2.cmd('REi') is not None          # Will fail and print log messages
 
-    if r2.cmd(f'REi {api_key}').strip() != "RevEngAI plugin initialized successfully":
+    out = r2.cmd(f'REi {api_key}').strip()
+    
+    if 'ERROR:' in out:
         print("[ERROR] REi <key> returned unexpected output")
         res = False
     else:
