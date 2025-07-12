@@ -86,7 +86,7 @@ def test_plugin_init_cmd(r2):
                 with open(os.path.expanduser('~/.creait'), 'w') as f:
                     f.write(f'api_key={api_key}\nhost={api_url}\n') 
                 res &= True
-    except File:
+    except FileNotFoundError:
         print('[ERROR] Creait config file not found!')
 
     return res
