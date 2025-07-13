@@ -18,7 +18,7 @@ def test_cmd_exists(r2, rcmds):
             else:
                 print(f"[SUCCESS] FOUND '{cmd}'")
         except json.JSONDecodeError as e:
-            print(f'Json decode error : {e}'')
+            print(f'Json decode error : {e}')
 
     if failed:
         print(f"[FAIL] {failed} out of {len(required_cmds)} required commands not found!")
