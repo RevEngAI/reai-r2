@@ -500,7 +500,7 @@ R_IPI RCmdStatus r_{cname}_dispatcher(RCore* core, int argc, const char** argv) 
     // Validate command arguments
     if (!validate_arguments(core, argc, argv, {required_count}, "{cmd_name}", NULL, NULL)) {{
         print_{cname}_help();
-        return R_CMD_STATUS_WRONG_ARGS;
+        return R_CMD_STATUS_OK;
     }}
 
     return r_{cname}_handler(core, argc, argv);
@@ -541,7 +541,7 @@ R_IPI RCmdStatus r_{group_cname}_dispatcher(RCore* core, int argc, const char** 
         return r_{dual_cname}_handler(core, argc, argv);
     }} else {{
         print_{dual_cname}_help();
-        return R_CMD_STATUS_WRONG_ARGS;
+        return R_CMD_STATUS_OK;
     }}
 }}
 """
