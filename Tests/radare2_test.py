@@ -11,7 +11,7 @@ def test_root_cmd_desc(r2):
     required_cmds = ['REf', 'REa', 'REc', 'REcs', 'REca', 'REcd', 'RE', 'REb']
 
     for cmd  in required_cmds:
-        if (cmd + ' ') not in out or 'ERROR' in r2.cmd(f'{cmd}?'):
+        if (cmd + '?') not in out or 'ERROR' in r2.cmd(f'{cmd}?'):
             failed += 1
             print(f"[ERROR] NOT FOUND '{cmd}' or ERRORED OUT")
         else:
@@ -31,7 +31,7 @@ def test_root_cmd_group_desc(r2):
     required_cmds = ['REa', 'REf', 'REb', 'REc', 'REd', 'REh', 'REi', 'REm', 'REu']
 
     for cmd in required_cmds:
-        if (cmd + ' ') not in out or 'ERROR' in r2.cmd(f'{cmd}?'):
+        if (cmd + '?') not in out or 'ERROR' in r2.cmd(f'{cmd}?'):
             failed += 1
             print(f"[ERROR] NOT FOUND '{cmd}' or ERRORED OUT")
         else:

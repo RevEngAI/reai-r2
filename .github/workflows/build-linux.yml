@@ -103,4 +103,5 @@ jobs:
         source .venv/bin/activate
         export PATH="$HOME/.local/bin:$PATH"
         export LD_LIBRARY_PATH="$HOME/.local/lib:$LD_LIBRARY_PATH"
+        ls $(r2 -H R2_USER_PLUGINS)
         python3 Tests/radare2_test.py test.bin
