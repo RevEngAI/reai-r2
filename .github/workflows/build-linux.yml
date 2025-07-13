@@ -101,4 +101,6 @@ jobs:
     - name: Run Radare2 plugin tests
       run: |
         source .venv/bin/activate
+        export PATH="$HOME/.local/bin:$PATH"
+        export LD_LIBRARY_PATH="$HOME/.local/lib:$LD_LIBRARY_PATH"
         python3 Tests/radare2_test.py test.bin
