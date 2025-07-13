@@ -10,12 +10,15 @@ def test_cmd_exists(r2, rcmds):
     failed = 0
 
     for cmd  in rcmds:
-        oj = r2.cmd2(f'{cmd}?')
-        if oj.error:
-            failed += 1
-            print(f"[ERROR] NOT FOUND '{cmd}' or ERRORED OUT")
-        else:
-            print(f"[SUCCESS] FOUND '{cmd}'")
+        try:
+            oj = r2.cmd2(f'{cmd}?')
+            if oj.error:
+                failed += 1
+                print(f"[ERROR] NOT FOUND '{cmd}' or ERRORED OUT")
+            else:
+                print(f"[SUCCESS] FOUND '{cmd}'")
+        except json.JSONDecodeError as e:
+            print(f'Json decode error : {e}'')
 
     if failed:
         print(f"[FAIL] {failed} out of {len(required_cmds)} required commands not found!")
