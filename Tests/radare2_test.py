@@ -11,7 +11,7 @@ def test_cmd_exists(r2, rcmds):
 
     for cmd  in rcmds:
         oj = r2.cmd2(f'{cmd}?')
-        if oj.error:       
+        if oj.error:
             failed += 1
             print(f"[ERROR] NOT FOUND '{cmd}' or ERRORED OUT")
         else:
@@ -85,10 +85,7 @@ failed = 0
 r2 = r2pipe.open(args.bin)
 print(f"Using binary '{args.bin}'")
 
-if not test_cmd_exists(r2, ['REf', 'REa', 'REc', 'REcs', 'REca', 'REcd', 'RE', 'REb']):
-    failed += 1
-
-if not test_cmd_exists(r2, ['REa', 'REf', 'REb', 'REc', 'REd', 'REh', 'REi', 'REm', 'REu']):
+if not test_cmd_exists(r2, ['REf', 'REa', 'REc', 'REcs', 'REca', 'REcd', 'RE', 'REb', 'REa', 'REf', 'REb', 'REc', 'REd', 'REh', 'REi', 'REm', 'REu']):
     failed += 1
 
 if not test_plugin_init_cmd(r2):
