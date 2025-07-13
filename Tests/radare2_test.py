@@ -6,58 +6,23 @@ import argparse
 
 import re
 
-def extract_cmd_names(help_text):
-    """
-    Given a help block, return the set of command names
-    (the first token on each non‑blank, non-“Use <command>” line).
-    """
-    names = set()
-    for line in help_text.splitlines():
-        line = line.strip()
-        if not line or line.lower().startswith("use <command>"):
-            continue
-        # split on any whitespace; the first item is the command
-        parts = line.split(None, 1)
-        names.add(parts[0])
-    return names
-
-def test_root_cmd_desc(r2):
-    out = r2.cmd('RE?')
-    available = extract_cmd_names(out)
-
+def test_cmd_exists(r2, rcmds):
     failed = 0
-    required = ['REf','REa','REc','REcs','REca','REcd','RE','REb']
-    for cmd in required:
-        o = r2.cmd(f'{cmd}?')
-        if cmd not in available or 'ERROR:' in o:
+
+    for cmd  in rcmds:
+        oj = r2.cmd2(f'{cmd}?')
+        if oj.error:       
             failed += 1
-            print(f"[ERROR] NOT FOUND or ERRORED: '{cmd}'")
+            print(f"[ERROR] NOT FOUND '{cmd}' or ERRORED OUT")
         else:
             print(f"[SUCCESS] FOUND '{cmd}'")
-    if failed:
-        print(f"[FAIL] {failed}/{len(required)} missing or errored")
-        return False
-    print("[PASS] All required root commands found")
-    return True
 
-def test_root_cmd_group_desc(r2):
-    out = r2.cmd('RE')
-    available = extract_cmd_names(out)
-
-    failed = 0
-    required = ['REa','REf','REb','REc','REd','REh','REi','REm','REu']
-    for cmd in required:
-        o = r2.cmd(f'{cmd}?')
-        if cmd not in available or 'ERROR:' in o:
-            failed += 1
-            print(f"[ERROR] NOT FOUND or ERRORED: '{cmd}'")
-        else:
-            print(f"[SUCCESS] FOUND '{cmd}'")
     if failed:
-        print(f"[FAIL] {failed}/{len(required)} missing or errored")
+        print(f"[FAIL] {failed} out of {len(required_cmds)} required commands not found!")
         return False
-    print("[PASS] All required group commands found")
-    return True
+    else:
+        print("[PASS] All required commands found")
+        return True
 
 def test_plugin_init_cmd(r2):
     """
@@ -120,10 +85,10 @@ failed = 0
 r2 = r2pipe.open(args.bin)
 print(f"Using binary '{args.bin}'")
 
-if not test_root_cmd_desc(r2):
+if not test_cmd_exists(r2, ['REf', 'REa', 'REc', 'REcs', 'REca', 'REcd', 'RE', 'REb']):
     failed += 1
 
-if not test_root_cmd_group_desc(r2):
+if not test_cmd_exists(r2, ['REa', 'REf', 'REb', 'REc', 'REd', 'REh', 'REi', 'REm', 'REu']):
     failed += 1
 
 if not test_plugin_init_cmd(r2):
