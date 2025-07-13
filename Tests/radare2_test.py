@@ -4,51 +4,60 @@ import sys
 import os
 import argparse
 
+import re
+
+def extract_cmd_names(help_text):
+    """
+    Given a help block, return the set of command names
+    (the first token on each non‑blank, non-“Use <command>” line).
+    """
+    names = set()
+    for line in help_text.splitlines():
+        line = line.strip()
+        if not line or line.lower().startswith("use <command>"):
+            continue
+        # split on any whitespace; the first item is the command
+        parts = line.split(None, 1)
+        names.add(parts[0])
+    return names
+
 def test_root_cmd_desc(r2):
     out = r2.cmd('RE?')
+    available = extract_cmd_names(out)
 
     failed = 0
-    required_cmds = ['REf', 'REa', 'REc', 'REcs', 'REca', 'REcd', 'RE', 'REb']
-
-    for cmd  in required_cmds:
-        print(f'======================================= Testing for command {cmd} =========================================')
+    required = ['REf','REa','REc','REcs','REca','REcd','RE','REb']
+    for cmd in required:
         o = r2.cmd(f'{cmd}?')
-        print(o)
-        if (cmd + ' ') not in out or 'ERROR' in o:
+        if cmd not in available or 'ERROR:' in o:
             failed += 1
-            print(f"[ERROR] NOT FOUND '{cmd}' or ERRORED OUT")
+            print(f"[ERROR] NOT FOUND or ERRORED: '{cmd}'")
         else:
             print(f"[SUCCESS] FOUND '{cmd}'")
-
     if failed:
-        print(f"[FAIL] {failed} out of {len(required_cmds)} required commands not found!")
+        print(f"[FAIL] {failed}/{len(required)} missing or errored")
         return False
-    else:
-        print("[PASS] All required commands found")
-        return True
+    print("[PASS] All required root commands found")
+    return True
 
 def test_root_cmd_group_desc(r2):
     out = r2.cmd('RE')
+    available = extract_cmd_names(out)
 
     failed = 0
-    required_cmds = ['REa', 'REf', 'REb', 'REc', 'REd', 'REh', 'REi', 'REm', 'REu']
-
-    for cmd in required_cmds:
-        print(f'======================================= Testing for command {cmd} =========================================')
+    required = ['REa','REf','REb','REc','REd','REh','REi','REm','REu']
+    for cmd in required:
         o = r2.cmd(f'{cmd}?')
-        print(o)
-        if (cmd + ' ') not in out or 'ERROR' in o:
+        if cmd not in available or 'ERROR:' in o:
             failed += 1
-            print(f"[ERROR] NOT FOUND '{cmd}' or ERRORED OUT")
+            print(f"[ERROR] NOT FOUND or ERRORED: '{cmd}'")
         else:
             print(f"[SUCCESS] FOUND '{cmd}'")
-
     if failed:
-        print(f"[FAIL] {failed} out of {len(required_cmds)} required commands not found!")
+        print(f"[FAIL] {failed}/{len(required)} missing or errored")
         return False
-    else:
-        print("[PASS] All required commands found")
-        return True
+    print("[PASS] All required group commands found")
+    return True
 
 def test_plugin_init_cmd(r2):
     """
